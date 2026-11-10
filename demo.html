@@ -43,8 +43,9 @@
   main { max-width: 1100px; margin: 0 auto; padding: 16px; }
   h1 { font-size: 1.3rem; margin: 0 0 4px; }
   .sub { color: var(--muted); margin: 0 0 16px; font-size: .9rem; }
-  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px; align-items: start; }
-  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  /* Right column = avatar stage (420px) + card padding/border. */
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 452px; gap: 16px; align-items: start; }
+  @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
   .card h2 { font-size: .95rem; margin: 0 0 8px; }
   label { display: block; font-size: .85rem; color: var(--muted); margin: 8px 0 4px; }
@@ -72,7 +73,12 @@
   #log { max-height: 160px; overflow: auto; font-size: .8rem; color: var(--muted); margin: 6px 0 0; padding-left: 18px; }
   details pre { white-space: pre-wrap; max-height: 260px; overflow: auto; }
   .legend { font-size: .8rem; color: var(--muted); margin-top: 6px; }
-  .avatar { display: flex; justify-content: center; }
+  /* Fixed avatar stage. CWASA sizes the canvas from its clientWidth/Height every
+     frame, and cwasa.css makes .CWASAAvatar/.divAv/.canvasAv fill their parent,
+     so a fixed-size parent fixes the canvas size. flex:none prevents shrinking. */
+  .avatar-stage { width: 420px; height: 540px; flex: none; margin: 0 auto;
+    position: relative; overflow: hidden; border-radius: 6px; }
+  .avatar-stage .CWASAAvatar { width: 100%; height: 100%; }
 </style>
 </head>
 <body>
@@ -118,7 +124,8 @@
 
     <aside>
       <div class="card">
-        <div class="avatar"><div class="CWASAPanel av0"></div></div>
+        <!-- CWASAAvatar = avatar only (no CWASA control table); controls are this page's own. -->
+        <div class="avatar-stage"><div class="CWASAAvatar av0"></div></div>
       </div>
       <div class="card">
         <h2>Đo đạc</h2>

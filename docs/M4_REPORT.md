@@ -90,3 +90,48 @@ Các rủi ro đã biết:
 - Hook `avatarready` được gọi không kèm chỉ số avatar. Trang chỉ có một avatar nên không ảnh hưởng.
 - Chưa có polyfill XSLT: trên Chrome 155+ / Edge 159+ (khi XSLT bị tắt), CWASA sẽ không chuyển được `hns_sign`.
 - Bộ tách từ chỉ biết các từ trong gói (124 mục), nên câu tự do phần lớn sẽ thiếu ký hiệu.
+
+## 7. Sửa bố cục avatar (2026-11-11)
+
+**Lỗi:** canvas `canvasAv av0` chỉ rộng 13 px.
+
+**Nguyên nhân (đo bằng DevTools Protocol trên Edge 157):**
+- `CWASAPanel` dựng `table.avTable` gồm ba ô theo chiều ngang: ô điều khiển `divCtrlPanel` (343 px), ô ngăn cách, và ô chứa `divAv`.
+- Cột phải của trang chỉ rộng 400 px, nên ô avatar bị co còn khoảng 15 px.
+- Mỗi khung hình, CWASA đặt `canvas.width/height` theo `clientWidth/clientHeight` của canvas.
+
+**Cách sửa (không đụng jas/):**
+- Dùng `CWASAAvatar av0`. Đây là lớp CWASA hỗ trợ sẵn (trang mẫu bespoke-gui của UEA dùng nó): chỉ có avatar, không có bảng điều khiển. Nút Ký/Dừng, FPS và trạng thái là của trang demo.
+- Bọc avatar trong `.avatar-stage` cố định 420×540 px (`flex: none`); cột phải rộng 452 px.
+- Trong `cwaclientcfg.json`: `width: 420`, `height: 540`, `initCamera: [0, -0.1, 4.4, 5, 12, 30, -1, -1]`. Định dạng camera là `[X, Y, R, theta, phi, FOV, l, r]` theo comment trong mã CWASA. Camera mặc định `[0, 0.23, 3.24, 5, 18, 30, -1, -1]` cắt mất chân trong khung dọc.
+
+**Sau khi sửa:** canvas 418×538 (trừ viền 1 px của `.divAv` trong cwasa.css). Avatar thấy trọn người từ đầu đến giày.
+
+Ảnh chụp lưu trong `evidence/m4_layout/` (không commit):
+
+| Ảnh | Nội dung |
+|---|---|
+| `before_edge.png` | Trước khi sửa |
+| `after_final_idle.png` | Sau khi sửa, lúc chờ |
+| `after_edge_headed_signing_0.png` | Sau khi sửa, giữa lúc ký, cửa sổ thật |
+
+## 8. Kết quả ký (Edge 157, đo qua CDP)
+
+- Thời gian nạp avatar (từ `CWASA.init` đến `avatarready`): 0,65–1,02 s qua các lần chạy.
+- FPS khi ký: trung bình 29–36 theo hook `avatarfps`. Mỗi lần ký chỉ có 1–5 mẫu, nên đây chỉ là con số thô.
+- Đã ký trọn (số ký hiệu `avatarsign` = số `hns_sign` gửi đi) ít nhất 3 câu trong cùng một phiên, ở nhiều lần chạy:
+  - headless: câu 0, 4, 5;
+  - cửa sổ thật: 10/10 câu ở một lần chạy.
+- Từng câu chạy riêng trên trang mới đều ký trọn.
+
+**Lỗi chưa giải quyết: treo khi phát nhiều câu liên tiếp trong một phiên.**
+- Sau 1–3 câu, vòng render của CWASA dừng: các hook `avatarframe`/`avatarfps` không còn được gọi, `animidle` không đến, và các yêu cầu phát sau bị bỏ qua.
+- Đo được:
+  - 6 lượt × 6 câu (headless, GPU thật): luôn hỏng ở câu #2 hoặc #3, dù nghỉ 500 ms hay 3000 ms giữa các câu.
+  - Cửa sổ thật: 1 lần 10/10 câu, 1 lần hỏng ở câu thứ 3.
+- **Không** phải do: chế độ headless, bóp timer nền, mất context WebGL (`isContextLost=false`), SwiftShader hay GPU thật, khoảng nghỉ giữa các câu.
+- **Lặp lại được với SiGML mẫu của UEA:** ghép 5 ký hiệu từ `BSLExamples/SignFiles` rồi phát 6 lần bằng `CWASA.playSiGMLText` thì có 1/2 lượt treo ở lần thứ 3. Vậy lỗi không đến từ dữ liệu VSL hay pipeline gloss.
+- Chưa loại trừ ảnh hưởng của việc điều khiển trang qua CDP (lệnh `Runtime.evaluate` mỗi 100 ms). **Cần thử bấm tay** nhiều câu liên tiếp trong trình duyệt thường.
+- Console luôn có `Error: animgenAllocate: jagid: 0` một lần lúc nạp SiGML đầu tiên, kể cả khi ký thành công. Chưa rõ có liên quan không.
+
+**XSLT:** Chrome 157 và Edge 157 (headless, máy này, 2026-11-11) đều còn `XSLTProcessor` (`typeof === "function"`).
