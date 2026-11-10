@@ -1,0 +1,14 @@
+{
+  "description": "text2sign-spike demo client configuration (written for this project; see README.md)",
+  "avs": ["anna", "marc", "francoise"],
+  "avSettings": [
+    {
+      "width": 384,
+      "height": 320,
+      "avList": "avs",
+      "initAv": "anna",
+      "allowSiGMLText": true,
+      "allowFrameSteps": false
+    }
+  ]
+}

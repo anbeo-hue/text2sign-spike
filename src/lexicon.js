@@ -34,6 +34,12 @@ export function buildLexicon(words, synonyms = []) {
   return { exact, plain, syn };
 }
 
+/** True if `form` is a known word with exact diacritics (dictionary or Synonyms key). */
+export function hasWord(lex, form) {
+  const k = form.toLowerCase();
+  return lex.exact.has(k) || lex.syn.has(k);
+}
+
 function lookupOne(lex, form, kind) {
   const k = form.toLowerCase();
   if (kind === 'exact') {

@@ -44,6 +44,13 @@ export const VERB_MODIFIERS = new Set(['nhất', 'được', 'xong']);
 /** Rule groups in application order. */
 export const RULE_GROUPS = ['punctuation', 'function_words', 'classifiers', 'numbers', 'negation', 'object_verb', 'question'];
 
+/**
+ * Groups applied by default. `question` is OFF since M4: on the M3 split it gave
+ * 0 gain on train and lowered test exact match (18.5% -> 17.1%). Re-enable with
+ * textToGloss(text, { groups: RULE_GROUPS }) or { enableQuestion: true }.
+ */
+export const DEFAULT_GROUPS = RULE_GROUPS.filter((g) => g !== 'question');
+
 const lc = (t) => t.toLowerCase();
 
 export function tokenize(text) {
@@ -164,10 +171,12 @@ const GROUPS = {
 
 /**
  * @param {string} text Vietnamese sentence (compound words may be joined with "_")
- * @param {{groups?: string[]}} [opts] subset of RULE_GROUPS to apply (order fixed)
+ * @param {{groups?: string[], enableQuestion?: boolean}} [opts] subset of RULE_GROUPS
+ *   to apply (order fixed); default DEFAULT_GROUPS (+ `question` if enableQuestion)
  * @returns {{tokens: string[], gloss: string, applied: {group:string, rule:string, detail:string}[]}}
  */
-export function textToGloss(text, { groups = RULE_GROUPS } = {}) {
+export function textToGloss(text, { groups, enableQuestion = false } = {}) {
+  if (!groups) groups = enableQuestion ? RULE_GROUPS : DEFAULT_GROUPS;
   const applied = [];
   const log = (group, rule, detail) => applied.push({ group, rule, detail });
   let tokens = tokenize(text.trim());

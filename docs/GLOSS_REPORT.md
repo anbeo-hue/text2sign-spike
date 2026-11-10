@@ -11,54 +11,60 @@
 - Kiểm tra rò rỉ: cặp (có dấu hoặc không dấu) xuất hiện ở cả hai phía = 0; khóa bỏ dấu trùng hai phía = 0.
 - Luật và danh sách từ chỉ được chọn bằng cách xem tập train.
 
-## 2. Tỉ lệ khớp chính xác (so token, không phân biệt hoa thường)
+## 2. Tỉ lệ khớp chính xác và độ đo mềm (so token, không phân biệt hoa thường)
 
-| Cấu hình | Train | Test |
-|---|---|---|
-| baseline: chép nguyên câu nguồn | 46/503 (9.1%) | 25/216 (11.6%) |
-| chỉ nhóm `punctuation` | 58/503 (11.5%) | 26/216 (12.0%) |
-| chỉ nhóm `function_words` | 62/503 (12.3%) | 34/216 (15.7%) |
-| chỉ nhóm `classifiers` | 46/503 (9.1%) | 26/216 (12.0%) |
-| chỉ nhóm `numbers` | 47/503 (9.3%) | 25/216 (11.6%) |
-| chỉ nhóm `negation` | 49/503 (9.7%) | 29/216 (13.4%) |
-| chỉ nhóm `object_verb` | 49/503 (9.7%) | 25/216 (11.6%) |
-| chỉ nhóm `question` | 43/503 (8.5%) | 23/216 (10.6%) |
-| cộng dồn đến `punctuation` | 58/503 (11.5%) | 26/216 (12.0%) |
-| cộng dồn đến `function_words` | 78/503 (15.5%) | 38/216 (17.6%) |
-| cộng dồn đến `classifiers` | 80/503 (15.9%) | 39/216 (18.1%) |
-| cộng dồn đến `numbers` | 81/503 (16.1%) | 39/216 (18.1%) |
-| cộng dồn đến `negation` | 85/503 (16.9%) | 40/216 (18.5%) |
-| cộng dồn đến `object_verb` | 91/503 (18.1%) | 40/216 (18.5%) |
-| cộng dồn đến `question` | 91/503 (18.1%) | 37/216 (17.1%) |
-| tất cả trừ `punctuation` | 72/503 (14.3%) | 33/216 (15.3%) |
-| tất cả trừ `function_words` | 63/503 (12.5%) | 31/216 (14.4%) |
-| tất cả trừ `classifiers` | 89/503 (17.7%) | 36/216 (16.7%) |
-| tất cả trừ `numbers` | 90/503 (17.9%) | 37/216 (17.1%) |
-| tất cả trừ `negation` | 87/503 (17.3%) | 36/216 (16.7%) |
-| tất cả trừ `object_verb` | 85/503 (16.9%) | 36/216 (16.7%) |
-| tất cả trừ `question` | 91/503 (18.1%) | 40/216 (18.5%) |
+Từ M4, cấu hình mặc định tắt nhóm `question` (xem docs/M4_REPORT.md). Mục 2.1, 3 và 4 dùng cấu hình mặc định.
 
-- Bản không dấu (DataTrain2), toàn bộ luật: train 11.7%, test 11.6% (baseline 9.1% / 11.6%). Danh sách từ viết có dấu nên gần như chỉ luật dấu câu có tác dụng.
+F1 = F1 theo từ (túi từ, trung bình theo câu, cao hơn là tốt). ED = khoảng cách chỉnh sửa theo token (Levenshtein, trung bình theo câu, thấp hơn là tốt).
+
+| Cấu hình | Train khớp | Train F1 | Train ED | Test khớp | Test F1 | Test ED |
+|---|---|---|---|---|---|---|
+| baseline: chép nguyên câu nguồn | 46/503 (9.1%) | 0.856 | 3.26 | 25/216 (11.6%) | 0.856 | 3.26 |
+| **mặc định M4** (tắt `question`) | 91/503 (18.1%) | 0.885 | 2.50 | 40/216 (18.5%) | 0.896 | 2.44 |
+| tất cả 7 nhóm (bật `question`) | 91/503 (18.1%) | 0.885 | 2.50 | 37/216 (17.1%) | 0.896 | 2.47 |
+| chỉ nhóm `punctuation` | 58/503 (11.5%) | 0.870 | 3.00 | 26/216 (12.0%) | 0.869 | 3.00 |
+| chỉ nhóm `function_words` | 62/503 (12.3%) | 0.875 | 2.84 | 34/216 (15.7%) | 0.881 | 2.81 |
+| chỉ nhóm `classifiers` | 46/503 (9.1%) | 0.858 | 3.23 | 26/216 (12.0%) | 0.860 | 3.22 |
+| chỉ nhóm `numbers` | 47/503 (9.3%) | 0.851 | 3.29 | 25/216 (11.6%) | 0.853 | 3.28 |
+| chỉ nhóm `negation` | 49/503 (9.7%) | 0.856 | 3.23 | 29/216 (13.4%) | 0.856 | 3.23 |
+| chỉ nhóm `object_verb` | 49/503 (9.7%) | 0.856 | 3.21 | 25/216 (11.6%) | 0.856 | 3.21 |
+| chỉ nhóm `question` | 43/503 (8.5%) | 0.856 | 3.26 | 23/216 (10.6%) | 0.856 | 3.30 |
+| cộng dồn đến `punctuation` | 58/503 (11.5%) | 0.870 | 3.00 | 26/216 (12.0%) | 0.869 | 3.00 |
+| cộng dồn đến `function_words` | 78/503 (15.5%) | 0.889 | 2.59 | 38/216 (17.6%) | 0.895 | 2.56 |
+| cộng dồn đến `classifiers` | 80/503 (15.9%) | 0.891 | 2.55 | 39/216 (18.1%) | 0.899 | 2.51 |
+| cộng dồn đến `numbers` | 81/503 (16.1%) | 0.885 | 2.58 | 39/216 (18.1%) | 0.896 | 2.52 |
+| cộng dồn đến `negation` | 85/503 (16.9%) | 0.885 | 2.55 | 40/216 (18.5%) | 0.896 | 2.49 |
+| cộng dồn đến `object_verb` | 91/503 (18.1%) | 0.885 | 2.50 | 40/216 (18.5%) | 0.896 | 2.44 |
+| cộng dồn đến `question` | 91/503 (18.1%) | 0.885 | 2.50 | 37/216 (17.1%) | 0.896 | 2.47 |
+| tất cả trừ `punctuation` | 72/503 (14.3%) | 0.871 | 2.76 | 33/216 (15.3%) | 0.882 | 2.73 |
+| tất cả trừ `function_words` | 63/503 (12.5%) | 0.866 | 2.92 | 31/216 (14.4%) | 0.870 | 2.89 |
+| tất cả trừ `classifiers` | 89/503 (17.7%) | 0.884 | 2.53 | 36/216 (16.7%) | 0.892 | 2.51 |
+| tất cả trừ `numbers` | 90/503 (17.9%) | 0.891 | 2.47 | 37/216 (17.1%) | 0.899 | 2.45 |
+| tất cả trừ `negation` | 87/503 (17.3%) | 0.885 | 2.53 | 36/216 (16.7%) | 0.896 | 2.51 |
+| tất cả trừ `object_verb` | 85/503 (16.9%) | 0.885 | 2.54 | 36/216 (16.7%) | 0.896 | 2.53 |
+| tất cả trừ `question` | 91/503 (18.1%) | 0.885 | 2.50 | 40/216 (18.5%) | 0.896 | 2.44 |
+
+- Bản không dấu (DataTrain2), cấu hình mặc định: train 11.7%, test 11.6% (baseline 9.1% / 11.6%). Danh sách từ viết có dấu nên gần như chỉ luật dấu câu có tác dụng.
 - Luật số (`numbers`) chỉ dựa trên rất ít ví dụ (khoảng 18-20 câu có chữ số trong toàn bộ dữ liệu): không kết luận được.
 
-### Số câu test có nhóm luật được kích hoạt
+### 2.1 Số câu test có nhóm luật được kích hoạt (cấu hình mặc định)
 
 | Nhóm | Số câu kích hoạt | Trong đó khớp chính xác |
 |---|---|---|
 | `punctuation` | 49 | 4 |
-| `function_words` | 112 | 17 |
+| `function_words` | 112 | 19 |
 | `classifiers` | 12 | 1 |
 | `numbers` | 7 | 0 |
 | `negation` | 21 | 4 |
 | `object_verb` | 30 | 1 |
-| `question` | 11 | 1 |
+| `question` | 0 | 0 |
 
 ## 3. Kiểu câu test chưa xử lý được
 
 | Kiểu lỗi | Số câu |
 |---|---|
 | thừa từ (thiếu luật xóa) | 110 |
-| đúng tập từ, sai trật tự (luật đảo chưa đủ) | 37 |
+| đúng tập từ, sai trật tự (luật đảo chưa đủ) | 34 |
 | thiếu từ (xóa quá tay) | 22 |
 | cùng độ dài, khác từ | 7 |
 | đích có từ không có ở nguồn (viết lại/sửa chính tả/đổi số) | 3 |

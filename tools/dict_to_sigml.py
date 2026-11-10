@@ -171,13 +171,19 @@ def build_entry(row, hand_valid, nm_valid, stats):
     return {"word": row["Word"], "hand": tokens, "nonmanual": nonmanual}, None
 
 
+def to_hns_sign(entry, indent="  "):
+    """One <hns_sign> element (no <sigml> wrapper), lines joined by newline."""
+    i1, i2, i3 = indent, indent * 2, indent * 3
+    out = [f"{i1}<hns_sign gloss={quoteattr(entry['word'])}>", f"{i2}<hamnosys_nonmanual>"]
+    out += [f'{i3}<{el} tag={quoteattr(v)}/>' for el, v in entry["nonmanual"]]
+    out += [f"{i2}</hamnosys_nonmanual>", f"{i2}<hamnosys_manual>"]
+    out += [f"{i3}<{t}/>" for t in entry["hand"]]
+    out += [f"{i2}</hamnosys_manual>", f"{i1}</hns_sign>"]
+    return "\n".join(out)
+
+
 def to_sigml(entry):
-    out = ["<sigml>", f"  <hns_sign gloss={quoteattr(entry['word'])}>", "    <hamnosys_nonmanual>"]
-    out += [f'      <{el} tag={quoteattr(v)}/>' for el, v in entry["nonmanual"]]
-    out += ["    </hamnosys_nonmanual>", "    <hamnosys_manual>"]
-    out += [f"      <{t}/>" for t in entry["hand"]]
-    out += ["    </hamnosys_manual>", "  </hns_sign>", "</sigml>"]
-    return "\n".join(out) + "\n"
+    return "<sigml>\n" + to_hns_sign(entry) + "\n</sigml>\n"
 
 
 def validate(xml_text, entry):

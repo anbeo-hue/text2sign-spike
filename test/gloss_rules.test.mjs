@@ -1,7 +1,7 @@
 // Unit tests with self-written sentences (no third-party data copied).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { textToGloss, tokenize, RULE_GROUPS } from '../src/gloss_rules.js';
+import { textToGloss, tokenize, RULE_GROUPS, DEFAULT_GROUPS } from '../src/gloss_rules.js';
 import { buildLexicon, lookupGloss } from '../src/lexicon.js';
 import { splitPairs, stripDiacritics, mulberry32 } from '../src/split.js';
 
@@ -52,12 +52,21 @@ test('question: wh-word to end, "mấy N" -> "N mấy", skipped in multi-clause 
 test('full pipeline logs applied rules', () => {
   // object_verb is skipped because the object contains a question word;
   // question then turns "mấy quả" into "quả mấy".
-  const r = textToGloss('bạn đã ăn mấy quả ?');
+  const r = textToGloss('bạn đã ăn mấy quả ?', { enableQuestion: true });
   assert.ok(r.applied.some((a) => a.group === 'punctuation'));
   assert.ok(r.applied.some((a) => a.group === 'function_words'));
   assert.ok(!r.applied.some((a) => a.group === 'object_verb'));
   assert.equal(r.gloss, 'bạn ăn quả mấy');
   assert.deepEqual(RULE_GROUPS.slice(0, 2), ['punctuation', 'function_words']);
+});
+
+test('question group is off by default and can be re-enabled', () => {
+  assert.ok(!DEFAULT_GROUPS.includes('question'));
+  assert.equal(DEFAULT_GROUPS.length, RULE_GROUPS.length - 1);
+  // object_verb still applies by default; question then moves "ai" to the end.
+  assert.equal(textToGloss('ai mua cam').gloss, 'ai cam mua');
+  assert.equal(textToGloss('ai mua cam', { enableQuestion: true }).gloss, 'cam mua ai');
+  assert.equal(textToGloss('ai mua cam', { groups: RULE_GROUPS }).gloss, 'cam mua ai');
 });
 
 test('stripDiacritics handles đ and tones', () => {

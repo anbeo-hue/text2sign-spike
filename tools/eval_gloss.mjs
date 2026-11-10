@@ -3,7 +3,7 @@
 // Usage: node tools/eval_gloss.mjs [--data DIR] [--seed N]
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { splitPairs, stripDiacritics } from '../src/split.js';
-import { textToGloss, RULE_GROUPS, tokenize } from '../src/gloss_rules.js';
+import { textToGloss, RULE_GROUPS, DEFAULT_GROUPS, tokenize } from '../src/gloss_rules.js';
 import { buildLexicon, lookupGloss } from '../src/lexicon.js';
 import { DEFAULT_DATA, loadPairs, alignedNonEmpty, loadDictionaryWords, loadSynonyms } from './lib_data.mjs';
 
@@ -33,9 +33,43 @@ const testPairs = test.flatMap((g) => g.signed);
 
 // ------------------------------------------------------------------ exact match
 const norm = (s) => tokenize(s).map((t) => t.toLowerCase()).join(' ');
+const toks = (s) => (norm(s) ? norm(s).split(' ') : []);
+
+/** Bag-of-words F1 between predicted and reference token lists (per sentence). */
+export function tokenF1(pred, ref) {
+  if (!pred.length && !ref.length) return 1;
+  const c = new Map();
+  for (const t of ref) c.set(t, (c.get(t) || 0) + 1);
+  let overlap = 0;
+  for (const t of pred) if (c.get(t) > 0) { overlap++; c.set(t, c.get(t) - 1); }
+  if (!overlap) return 0;
+  const p = overlap / pred.length, r = overlap / ref.length;
+  return (2 * p * r) / (p + r);
+}
+
+/** Token-level Levenshtein distance (insert/delete/substitute = 1). */
+export function editDistance(a, b) {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/** Exact match count, mean token F1, mean token edit distance. */
 function exact(pairs, fn) {
-  let ok = 0;
-  for (const [s, t] of pairs) if (norm(fn(s)) === norm(t)) ok++;
+  let ok = 0, f1 = 0, ed = 0;
+  for (const [s, t] of pairs) {
+    const p = toks(fn(s)), r = toks(t);
+    if (p.join(' ') === r.join(' ')) ok++;
+    f1 += tokenF1(p, r);
+    ed += editDistance(p, r);
+  }
+  exact.last = { f1: pairs.length ? f1 / pairs.length : 0, ed: pairs.length ? ed / pairs.length : 0 };
   return ok;
 }
 const pct = (a, b) => (b ? ((100 * a) / b).toFixed(1) + '%' : 'n/a');
@@ -43,10 +77,13 @@ const run = (groups) => (s) => textToGloss(s, { groups }).gloss;
 
 const rows = [];
 const addRow = (label, fn) => {
-  const tr = exact(trainPairs, fn), te = exact(testPairs, fn);
-  rows.push({ label, tr, te });
+  const tr = exact(trainPairs, fn); const trS = exact.last;
+  const te = exact(testPairs, fn); const teS = exact.last;
+  rows.push({ label, tr, te, trF1: trS.f1, teF1: teS.f1, trED: trS.ed, teED: teS.ed });
 };
 addRow('baseline: chép nguyên câu nguồn', (s) => s);
+addRow('**mặc định M4** (tắt `question`)', run(DEFAULT_GROUPS));
+addRow('tất cả 7 nhóm (bật `question`)', run(RULE_GROUPS));
 for (const g of RULE_GROUPS) addRow(`chỉ nhóm \`${g}\``, run([g]));
 for (let k = 1; k <= RULE_GROUPS.length; k++) addRow(`cộng dồn đến \`${RULE_GROUPS[k - 1]}\``, run(RULE_GROUPS.slice(0, k)));
 for (const g of RULE_GROUPS) addRow(`tất cả trừ \`${g}\``, run(RULE_GROUPS.filter((x) => x !== g)));
@@ -54,7 +91,7 @@ for (const g of RULE_GROUPS) addRow(`tất cả trừ \`${g}\``, run(RULE_GROUPS
 // Unsigned twin (DataTrain2): word lists are written with diacritics, so the
 // rules only see punctuation there. Reported for completeness.
 const trainU = train.flatMap((g) => g.unsigned), testU = test.flatMap((g) => g.unsigned);
-const unsignedAll = { tr: exact(trainU, run(RULE_GROUPS)), te: exact(testU, run(RULE_GROUPS)),
+const unsignedAll = { tr: exact(trainU, run(DEFAULT_GROUPS)), te: exact(testU, run(DEFAULT_GROUPS)),
   trb: exact(trainU, (s) => s), teb: exact(testU, (s) => s) };
 
 // Rule firing counts on test
@@ -129,17 +166,21 @@ a(`- Chia ngẫu nhiên seed=${stats.seed} (mulberry32), test=${stats.testRatio 
 a(`- Kiểm tra rò rỉ: cặp (có dấu hoặc không dấu) xuất hiện ở cả hai phía = ${overlap}; khóa bỏ dấu trùng hai phía = ${plainKeyOverlap}.`);
 a('- Luật và danh sách từ chỉ được chọn bằng cách xem tập train.');
 a();
-a('## 2. Tỉ lệ khớp chính xác (so token, không phân biệt hoa thường)');
+a('## 2. Tỉ lệ khớp chính xác và độ đo mềm (so token, không phân biệt hoa thường)');
 a();
-a('| Cấu hình | Train | Test |');
-a('|---|---|---|');
-for (const r of rows) a(`| ${r.label} | ${r.tr}/${trainPairs.length} (${pct(r.tr, trainPairs.length)}) | ${r.te}/${testPairs.length} (${pct(r.te, testPairs.length)}) |`);
+a('Từ M4, cấu hình mặc định tắt nhóm `question` (xem docs/M4_REPORT.md). Mục 2.1, 3 và 4 dùng cấu hình mặc định.');
 a();
-a(`- Bản không dấu (DataTrain2), toàn bộ luật: train ${pct(unsignedAll.tr, trainU.length)}, test ${pct(unsignedAll.te, testU.length)} `
+a('F1 = F1 theo từ (túi từ, trung bình theo câu, cao hơn là tốt). ED = khoảng cách chỉnh sửa theo token (Levenshtein, trung bình theo câu, thấp hơn là tốt).');
+a();
+a('| Cấu hình | Train khớp | Train F1 | Train ED | Test khớp | Test F1 | Test ED |');
+a('|---|---|---|---|---|---|---|');
+for (const r of rows) a(`| ${r.label} | ${r.tr}/${trainPairs.length} (${pct(r.tr, trainPairs.length)}) | ${r.trF1.toFixed(3)} | ${r.trED.toFixed(2)} | ${r.te}/${testPairs.length} (${pct(r.te, testPairs.length)}) | ${r.teF1.toFixed(3)} | ${r.teED.toFixed(2)} |`);
+a();
+a(`- Bản không dấu (DataTrain2), cấu hình mặc định: train ${pct(unsignedAll.tr, trainU.length)}, test ${pct(unsignedAll.te, testU.length)} `
   + `(baseline ${pct(unsignedAll.trb, trainU.length)} / ${pct(unsignedAll.teb, testU.length)}). Danh sách từ viết có dấu nên gần như chỉ luật dấu câu có tác dụng.`);
 a('- Luật số (`numbers`) chỉ dựa trên rất ít ví dụ (khoảng 18-20 câu có chữ số trong toàn bộ dữ liệu): không kết luận được.');
 a();
-a('### Số câu test có nhóm luật được kích hoạt');
+a('### 2.1 Số câu test có nhóm luật được kích hoạt (cấu hình mặc định)');
 a();
 a('| Nhóm | Số câu kích hoạt | Trong đó khớp chính xác |');
 a('|---|---|---|');
@@ -196,7 +237,7 @@ writeFileSync('data/reports/m3_eval.md', E.join('\n') + '\n', 'utf8');
 
 // ------------------------------------------------------------------ console
 console.log(`split: train=${stats.train} test=${stats.test} overlap=${overlap} seed=${seed}`);
-for (const r of rows) console.log(`${r.label.padEnd(36)} train ${pct(r.tr, trainPairs.length).padStart(6)}  test ${pct(r.te, testPairs.length).padStart(6)}`);
+for (const r of rows) console.log(`${r.label.padEnd(36)} train ${pct(r.tr, trainPairs.length).padStart(6)} F1 ${r.trF1.toFixed(3)} ED ${r.trED.toFixed(2)}  test ${pct(r.te, testPairs.length).padStart(6)} F1 ${r.teF1.toFixed(3)} ED ${r.teED.toFixed(2)}`);
 console.log(`coverage tokens exact=${pct(covE.hit, covE.tok)} +syn=${pct(covES.hit, covES.tok)} +plain=${pct(covESP.hit, covESP.tok)}`);
 console.log(`fully signable sentences exact=${covE.full} +syn=${covES.full} +plain=${covESP.full} of ${covE.n}`);
 console.log('wrote docs/GLOSS_REPORT.md and data/reports/m3_eval.md');

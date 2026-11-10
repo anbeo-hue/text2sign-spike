@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Text2Sign Demo</title>
+
+<!-- CWASA (UEA, CC BY-NC-ND 4.0): loaded UNMODIFIED from jas/ by relative path. -->
+<link rel="stylesheet" href="jas/loc2025/cwa/cwasa.css">
+
+<!--
+  XSLT: CWASA converts H-SiGML -> G-SiGML with XSLTProcessor (checked when
+  allcsa.js builds its XSLT wrapper). Only if the browser no longer has
+  XSLTProcessor, load the xslt-polyfill BEFORE allcsa.js. document.write keeps
+  the order synchronous. The polyfill is NOT downloaded yet (see README.md).
+-->
+<script>
+  window.T2S_XSLT = {
+    native: typeof XSLTProcessor !== 'undefined',
+    polyfillSrc: 'vendor/xslt-polyfill/xslt-polyfill.min.js',
+    polyfillLoaded: false,
+    polyfillError: false,
+  };
+  if (!window.T2S_XSLT.native) {
+    document.write('<script src="' + window.T2S_XSLT.polyfillSrc + '"' +
+      ' onload="T2S_XSLT.polyfillLoaded=true" onerror="T2S_XSLT.polyfillError=true"><\/script>');
+  }
+</script>
+<script src="jas/loc2025/cwa/allcsa.js"></script>
+
+<style>
+  :root {
+    --bg: #f7f7f5; --fg: #1d1d1b; --muted: #5f5f5a; --card: #ffffff; --line: #dcdcd6;
+    --ok: #1f7a3a; --warn: #9a5b00; --bad: #b3261e; --accent: #2457a6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161615; --fg: #ececea; --muted: #a3a39c; --card: #20201f; --line: #3a3a37;
+      --ok: #5fc27e; --warn: #e3a64a; --bad: #ef7d74; --accent: #8bb0ef; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 16px; font-size: .9rem; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px; align-items: start; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .card h2 { font-size: .95rem; margin: 0 0 8px; }
+  label { display: block; font-size: .85rem; color: var(--muted); margin: 8px 0 4px; }
+  select, textarea { width: 100%; font: inherit; color: var(--fg); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+  textarea { min-height: 64px; resize: vertical; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  button { font: inherit; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--accent);
+    background: var(--accent); color: var(--card); cursor: pointer; }
+  button.secondary { background: transparent; color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 1px solid var(--line); border-radius: 999px; padding: 1px 10px; font-size: .9rem; }
+  .chip.exact { border-color: var(--ok); }
+  .chip.synonym { border-color: var(--accent); }
+  .chip.plain { border-color: var(--warn); border-style: dashed; }
+  .chip.missing { border-color: var(--bad); color: var(--bad); text-decoration: line-through; }
+  .chip small { color: var(--muted); }
+  .mono { font-family: ui-monospace, Consolas, monospace; font-size: .85rem; word-break: break-word; }
+  dl.metrics { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; }
+  dl.metrics dt { color: var(--muted); }
+  dl.metrics dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .status { font-size: .85rem; }
+  .status.bad { color: var(--bad); } .status.warn { color: var(--warn); } .status.ok { color: var(--ok); }
+  #log { max-height: 160px; overflow: auto; font-size: .8rem; color: var(--muted); margin: 6px 0 0; padding-left: 18px; }
+  details pre { white-space: pre-wrap; max-height: 260px; overflow: auto; }
+  .legend { font-size: .8rem; color: var(--muted); margin-top: 6px; }
+  .avatar { display: flex; justify-content: center; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Văn bản → gloss → SiGML → avatar</h1>
+  <p class="sub">Bản thử nghiệm ngoại tuyến. Luật gloss và từ điển chưa được người hiểu VSL xác nhận.</p>
+
+  <div class="grid">
+    <section>
+      <div class="card">
+        <h2>Câu cần ký</h2>
+        <label for="demoSelect">Câu demo (ký được hoàn toàn theo từ điển, đúng dấu + Synonyms)</label>
+        <select id="demoSelect" disabled><option>Đang nạp gói demo…</option></select>
+        <label for="inputText">Hoặc nhập câu (chỉ các từ có trong gói demo mới có ký hiệu)</label>
+        <textarea id="inputText" spellcheck="false"></textarea>
+        <div class="row">
+          <button id="playBtn" disabled>Ký</button>
+          <button id="stopBtn" class="secondary" disabled>Dừng</button>
+          <label style="margin:0"><input type="checkbox" id="questionToggle"> bật luật <code>question</code> (tắt mặc định)</label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Kết quả</h2>
+        <label>Tách từ</label>
+        <div id="segmented" class="mono">–</div>
+        <label>Gloss theo luật</label>
+        <div id="gloss" class="mono">–</div>
+        <label>Gloss tham chiếu trong dữ liệu (câu demo)</label>
+        <div id="reference" class="mono">–</div>
+        <label>Từ trong gloss</label>
+        <div id="lookups" class="chips">–</div>
+        <div class="legend">Viền xanh lá: khớp đúng dấu · xanh dương: qua Synonyms · gạch đứt cam: khớp bỏ dấu (<b>chưa chắc</b>) · đỏ gạch ngang: không có ký hiệu (chưa đánh vần)</div>
+        <label>Không có ký hiệu</label>
+        <div id="missing" class="mono">–</div>
+        <label>Chưa chắc</label>
+        <div id="uncertain" class="mono">–</div>
+        <label>Luật đã áp dụng</label>
+        <div id="applied" class="mono">–</div>
+        <details><summary>SiGML gửi tới CWASA</summary><pre id="sigml" class="mono"></pre></details>
+      </div>
+    </section>
+
+    <aside>
+      <div class="card">
+        <div class="avatar"><div class="CWASAPanel av0"></div></div>
+      </div>
+      <div class="card">
+        <h2>Đo đạc</h2>
+        <dl class="metrics">
+          <dt>XSLTProcessor</dt><dd id="mXslt">–</dd>
+          <dt>Nạp avatar</dt><dd id="mLoad">–</dd>
+          <dt>FPS hiện tại</dt><dd id="mFps">–</dd>
+          <dt>FPS lần ký gần nhất</dt><dd id="mFpsRun">–</dd>
+          <dt>Trạng thái</dt><dd id="mState">–</dd>
+        </dl>
+        <div id="status" class="status">Đang khởi tạo…</div>
+        <ol id="log"></ol>
+      </div>
+    </aside>
+  </div>
+</main>
+<script type="module" src="src/demo.js"></script>
+</body>
+</html>

@@ -5,3 +5,8 @@ node_modules/
 vendor/
 data/sigml/test/
 data/reports/
+data/pack/
+evidence/
+
+data/pack/
+__pycache__/
