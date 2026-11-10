@@ -2,3 +2,6 @@ jas/
 BSLExamples/
 data/external/
 node_modules/
+vendor/
+data/sigml/test/
+data/reports/
