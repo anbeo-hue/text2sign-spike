@@ -49,19 +49,32 @@ Các trình duyệt đang gỡ XSLT. Lịch dưới đây do chủ dự án cung
 | Chrome | Tắt XSLT mặc định từ **Chrome 155 (17/11/2026)** |
 | Edge | Tắt mặc định từ **Edge 159 (giữa tháng 12/2026)**; chính sách `XSLTEnabled` chỉ bật lại tạm thời đến **Edge 176 (mùa hè 2027)** |
 
+Ghi chú: ngày 2026-11-11, Chrome 157 và Edge 157 trên máy này **vẫn còn** `XSLTProcessor`. Điều này không khớp với mốc
+"Chrome 155 tắt từ 17/11/2026" ở trên, nên mốc đó cần đối chiếu lại.
+
+Polyfill: **xslt-polyfill 1.0.33** (npm `xslt-polyfill`, mã nguồn https://github.com/mfreed7/xslt_polyfill, tác giả Mason Freed),
+giấy phép **BSD-3-Clause**. Tarball `xslt-polyfill-1.0.33.tgz` khớp integrity
+`sha512-GFKg8/M20hbSWLgEBa0ucs36Fhun1gcIymJTw5vz5Suao+00g0KV2/6M4HF5kJ4oB36PfIkHJCVgejPNs5ZMlw==`.
+Chỉ chép `xslt-polyfill.min.js` (sha256 `0fd640a8…6b4d14`, đã nhúng Wasm, không cần `dist/xslt-wasm.js`) và `LICENSE`
+vào `vendor/xslt-polyfill/`. `vendor/` nằm trong `.gitignore`, không commit. Polyfill biên dịch libxslt/libxml2 sang Wasm;
+file `min.js` chỉ ghi bản quyền BSD của tác giả, không kèm thông báo giấy phép riêng của libxslt/libxml2.
+
 Thiết kế trong `demo.html`:
 
-- Một script thường chạy trước `allcsa.js` để kiểm tra `typeof XSLTProcessor`.
-- **Chỉ khi không có**, nó chèn (bằng `document.write`, nên vẫn giữ đúng thứ tự đồng bộ)
-  `vendor/xslt-polyfill/xslt-polyfill.min.js` trước `allcsa.js`.
-- Trang hiển thị trạng thái XSLT (native / polyfill / không có).
+- Một script thường chạy trước `allcsa.js`:
+  - mặc định: nếu có `XSLTProcessor` native thì dùng native, không nạp polyfill;
+  - `demo.html?xslt=polyfill` (chế độ ÉP): xóa `window.XSLTProcessor` gốc rồi nạp polyfill;
+  - nếu không có native: nạp polyfill (đặt `xsltUsePolyfillOnlyIfNeeded = true` để không bao giờ thay bản native).
+- Polyfill được chèn bằng `document.write` **trước** `allcsa.js`. Thứ tự này bắt buộc: nạp polyfill **sau** `allcsa.js`
+  thì Wasm khởi tạo lỗi (`Cannot read properties of undefined (reading 'buffer')`, thấy trên Chrome 157).
+- Wasm nạp bất đồng bộ; trước khi sẵn sàng, mọi phép biến đổi đều ném lỗi. `src/demo.js` đợi `xsltPolyfillReady` rồi mới gọi `CWASA.init`.
+  Ở bản 1.0.33, `xsltPolyfillReady` là **hàm** trả về Promise (README của gói nói là "promise").
+- Ô "XSLTProcessor" ghi rõ `native` hay `polyfill` (kèm "ÉP" nếu bật chế độ ép). Ô "Ký hiệu lần gần nhất" so số
+  `hns_sign` gửi đi với số sự kiện `avatarsign`.
 
-**Polyfill CHƯA được tải.** Hiện `vendor/xslt-polyfill/` không tồn tại, nên trên trình duyệt đã gỡ XSLT,
-CWASA sẽ không chuyển được SiGML.
-
-- Tên tệp `xslt-polyfill.min.js` là giả định; khi tải sẽ sửa lại đúng tên.
-- Giấy phép của xslt-polyfill: **chưa xác minh**. Sẽ ghi đúng tên giấy phép, phiên bản ghim và nguồn
-  vào đây sau khi được phép tải và đọc tệp LICENSE đi kèm.
+Kiểm tương đương: `tools/xslt_equiv.html` (mở qua server, trên trình duyệt còn XSLT native) dùng chính `HtoG` của CWASA
+(parser HamNoSys + `h2s.xsl`) với hai bộ XSLT, native và polyfill, rồi so chuỗi G-SiGML cho mọi `hns_sign`
+trong `data/pack/demo_pack.json` và cả 63 câu demo. Trang chỉ đọc dữ liệu. Kết quả xem `docs/STATUS.md`.
 
 ## Giấy phép và nguồn bên thứ ba (không commit vào repo)
 
@@ -70,7 +83,7 @@ CWASA sẽ không chuyển được SiGML.
 | CWASA / JASigning (UEA), `jas/loc2025` | Creative Commons BY-NC-ND 4.0 (theo chân trang các trang mẫu trong `jas/loc2025/cwa/`) | Dùng nguyên vẹn, không sửa, không phân phối lại |
 | BSLExamples | theo UEA | Chỉ đọc để lấy tập thẻ hợp lệ |
 | raianrido/VSL (từ điển, DataTrain, Synonyms) | GPL-3.0 | Chỉ thử cục bộ; repo chỉ chứa thống kê |
-| xslt-polyfill | chưa xác minh | Chưa tải |
+| xslt-polyfill 1.0.33 (mfreed7/xslt_polyfill) | BSD-3-Clause | `vendor/xslt-polyfill/` (chỉ `min.js` + `LICENSE`), không commit |
 
 Hiện chưa dùng mã nào từ repo hand-gesture-recognition-using-mediapipe (Apache-2.0); nếu dùng sẽ ghi nguồn tại đây.
 

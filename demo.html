@@ -10,21 +10,39 @@
 
 <!--
   XSLT: CWASA converts H-SiGML -> G-SiGML with XSLTProcessor (checked when
-  allcsa.js builds its XSLT wrapper). Only if the browser no longer has
-  XSLTProcessor, load the xslt-polyfill BEFORE allcsa.js. document.write keeps
-  the order synchronous. The polyfill is NOT downloaded yet (see README.md).
+  allcsa.js builds its XSLT wrapper). If the browser has no XSLTProcessor, or
+  the page is opened with ?xslt=polyfill (forced mode: the native
+  XSLTProcessor is deleted first), load xslt-polyfill@1.0.33 (BSD-3-Clause,
+  vendor/, not committed) BEFORE allcsa.js. document.write keeps the order
+  synchronous. The polyfill's Wasm module loads asynchronously; src/demo.js
+  waits for window.xsltPolyfillReady before CWASA.init.
 -->
 <script>
-  window.T2S_XSLT = {
-    native: typeof XSLTProcessor !== 'undefined',
-    polyfillSrc: 'vendor/xslt-polyfill/xslt-polyfill.min.js',
-    polyfillLoaded: false,
-    polyfillError: false,
-  };
-  if (!window.T2S_XSLT.native) {
-    document.write('<script src="' + window.T2S_XSLT.polyfillSrc + '"' +
-      ' onload="T2S_XSLT.polyfillLoaded=true" onerror="T2S_XSLT.polyfillError=true"><\/script>');
-  }
+  (function () {
+    var forced = new URLSearchParams(location.search).get('xslt') === 'polyfill';
+    var hadNative = typeof XSLTProcessor !== 'undefined';
+    if (forced && hadNative) {
+      try { delete window.XSLTProcessor; } catch (e) { /* reported below */ }
+    }
+    var x = window.T2S_XSLT = {
+      forced: forced,
+      hadNative: hadNative,
+      nativeRemoved: forced && hadNative && typeof XSLTProcessor === 'undefined',
+      polyfillSrc: 'vendor/xslt-polyfill/xslt-polyfill.min.js',
+      polyfillRequested: false,
+      polyfillLoaded: false,
+      polyfillError: false,
+      t0: performance.now(),
+    };
+    x.native = typeof XSLTProcessor !== 'undefined';
+    if (!x.native) {
+      x.polyfillRequested = true;
+      // Never replace a working native XSLTProcessor (polyfill default is to replace it).
+      window.xsltUsePolyfillOnlyIfNeeded = true;
+      document.write('<script src="' + x.polyfillSrc + '" charset="utf-8"' +
+        ' onload="T2S_XSLT.polyfillLoaded=true" onerror="T2S_XSLT.polyfillError=true"><\/script>');
+    }
+  })();
 </script>
 <script src="jas/loc2025/cwa/allcsa.js"></script>
 
@@ -132,6 +150,7 @@
         <dl class="metrics">
           <dt>XSLTProcessor</dt><dd id="mXslt">–</dd>
           <dt>Nạp avatar</dt><dd id="mLoad">–</dd>
+          <dt>Ký hiệu lần gần nhất</dt><dd id="mSigns">–</dd>
           <dt>FPS hiện tại</dt><dd id="mFps">–</dd>
           <dt>FPS lần ký gần nhất</dt><dd id="mFpsRun">–</dd>
           <dt>Trạng thái</dt><dd id="mState">–</dd>

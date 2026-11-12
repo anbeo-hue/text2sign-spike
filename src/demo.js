@@ -5,7 +5,15 @@ import { textToSiGML } from './pipeline.js';
 
 const PACK_URL = 'data/pack/demo_pack.json';
 const $ = (id) => document.getElementById(id);
-const state = { pack: null, lex: null, initStart: 0, ready: false, fpsRun: null, signing: false };
+const state = { pack: null, lex: null, initStart: 0, ready: false, fpsRun: null, signing: false, run: null };
+// Read-only metrics for manual checks and automation (no polling needed: see T2S_METRICS.events).
+const metrics = window.T2S_METRICS = { xslt: null, polyfillReadyMs: null, loadMs: null, runs: [], events: [] };
+function emit(type, data) {
+  const e = { type, t: performance.now(), ...data };
+  metrics.events.push(e);
+  // Optional push channel for CDP Runtime.addBinding (avoids periodic Runtime.evaluate).
+  if (typeof window.t2sReport === 'function') { try { window.t2sReport(JSON.stringify(e)); } catch { /* ignore */ } }
+}
 
 function log(msg) {
   const li = document.createElement('li');
@@ -21,11 +29,36 @@ function setStatus(msg, kind = '') {
 const text = (id, v) => { $(id).textContent = v === '' || v == null ? '–' : v; };
 
 // ------------------------------------------------------------------ XSLT check
+// mode: 'native' | 'polyfill' | 'none'
 function xsltState() {
   const x = window.T2S_XSLT || {};
-  if (x.native) return { ok: true, label: 'có sẵn (native)' };
-  if (typeof XSLTProcessor !== 'undefined') return { ok: true, label: 'qua polyfill' };
-  return { ok: false, label: x.polyfillError ? 'không có; polyfill chưa tải (xem README)' : 'không có' };
+  const forcedNote = x.forced ? ' — ÉP bằng ?xslt=polyfill' : '';
+  if (x.forced && x.hadNative && !x.nativeRemoved) {
+    return { ok: x.native, mode: 'native', label: 'native (KHÔNG xóa được XSLTProcessor gốc, chế độ ép thất bại)' };
+  }
+  if (x.native) return { ok: true, mode: 'native', label: 'native (trình duyệt)' };
+  const isPoly = typeof XSLTProcessor !== 'undefined'
+    && typeof XSLTProcessor.prototype.isPolyfill === 'function';
+  if (isPoly) return { ok: true, mode: 'polyfill', label: `polyfill xslt-polyfill@1.0.33${forcedNote}` };
+  if (x.polyfillError) return { ok: false, mode: 'none', label: `không có; tải polyfill lỗi (${x.polyfillSrc})${forcedNote}` };
+  return { ok: false, mode: 'none', label: `không có${forcedNote}` };
+}
+
+// The polyfill's transform throws until its Wasm module is ready, so CWASA must not start before.
+async function waitPolyfill(xs) {
+  if (xs.mode !== 'polyfill') return true;
+  const t0 = window.T2S_XSLT?.t0 ?? 0;
+  try {
+    // 1.0.33: xsltPolyfillReady is a FUNCTION returning a Promise (README of later versions says "promise").
+    const r = window.xsltPolyfillReady;
+    await (typeof r === 'function' ? r() : r);
+    metrics.polyfillReadyMs = performance.now() - t0;
+    log(`polyfill XSLT sẵn sàng sau ${(metrics.polyfillReadyMs / 1000).toFixed(2)} s (tính từ đầu trang)`);
+    return true;
+  } catch (e) {
+    setStatus(`Polyfill XSLT nạp Wasm lỗi: ${e}`, 'bad');
+    return false;
+  }
 }
 
 // ------------------------------------------------------------------ CWASA
@@ -46,6 +79,8 @@ function initCWASA() {
     if (state.ready) return;
     state.ready = true;
     const ms = performance.now() - state.initStart;
+    metrics.loadMs = ms;
+    emit('avatarready', { loadMs: ms });
     text('mLoad', `${(ms / 1000).toFixed(2)} s (từ CWASA.init đến avatarready)`);
     text('mState', 'sẵn sàng');
     setStatus('Avatar sẵn sàng.', 'ok');
@@ -61,18 +96,38 @@ function initCWASA() {
       state.fpsRun.max = Math.max(state.fpsRun.max, fps);
     }
   }, 0);
+  CWASA.addHook('avatarsign', (evt) => {
+    if (!state.run) return;
+    state.run.avatarsign++;
+    const s = evt.msg && evt.msg.s;
+    if (s != null) state.run.signIdx.add(String(s));
+  }, 0);
   CWASA.addHook('animactive', () => {
     state.signing = true;
     state.fpsRun = { n: 0, sum: 0, min: Infinity, max: -Infinity, t0: performance.now() };
     text('mState', 'đang ký');
+    emit('animactive', {});
   });
   CWASA.addHook('animidle', () => {
     if (state.signing && state.fpsRun) {
       const r = state.fpsRun;
-      const dur = ((performance.now() - r.t0) / 1000).toFixed(1);
+      const durS = (performance.now() - r.t0) / 1000;
+      const dur = durS.toFixed(1);
       text('mFpsRun', r.n
         ? `TB ${(r.sum / r.n).toFixed(1)} · min ${r.min.toFixed(1)} · max ${r.max.toFixed(1)} (${r.n} mẫu, ${dur} s)`
         : `không có mẫu FPS (${dur} s)`);
+      const run = state.run;
+      if (run) {
+        const rec = {
+          text: run.text, hnsSent: run.hnsSent, avatarsign: run.avatarsign, signIdx: run.signIdx.size,
+          fpsMean: r.n ? r.sum / r.n : null, fpsMin: r.n ? r.min : null, fpsMax: r.n ? r.max : null,
+          fpsSamples: r.n, durS, xslt: metrics.xslt,
+        };
+        metrics.runs.push(rec);
+        text('mSigns', `gửi ${rec.hnsSent} hns_sign · avatarsign ${rec.avatarsign} sự kiện (${rec.signIdx} chỉ số s khác nhau)`);
+        emit('run', rec);
+        state.run = null;
+      }
     }
     state.signing = false;
     text('mState', state.ready ? 'sẵn sàng' : '–');
@@ -155,6 +210,10 @@ function run() {
   $('sigml').textContent = r.sigml || '(trống)';
   if (!r.sigml) { setStatus('Không có ký hiệu nào để ký.', 'warn'); return; }
   if (!xsltState().ok) setStatus('Trình duyệt không có XSLTProcessor: CWASA có thể không chuyển được SiGML.', 'warn');
+  const hnsSent = (r.sigml.match(/<hns_sign\b/g) || []).length;
+  state.run = { text: input, hnsSent, avatarsign: 0, signIdx: new Set() };
+  text('mSigns', `gửi ${hnsSent} hns_sign · đang chờ avatar…`);
+  emit('play', { text: input, hnsSent });
   const msg = CWASA.playSiGMLText(r.sigml, 0);
   setStatus(`Gửi ${r.signed.length} ký hiệu tới avatar (${msg}).`);
 }
@@ -170,7 +229,12 @@ $('playBtn').addEventListener('click', run);
 $('stopBtn').addEventListener('click', () => { if (typeof CWASA !== 'undefined') CWASA.stopSiGML(0); });
 
 const xs = xsltState();
+metrics.xslt = xs.mode;
 text('mXslt', xs.label);
-if (!xs.ok) setStatus('Trình duyệt không có XSLTProcessor và chưa có polyfill (xem README).', 'warn');
-initCWASA();
+document.documentElement.dataset.xslt = xs.mode;
+emit('xslt', { mode: xs.mode, label: xs.label });
+if (!xs.ok) setStatus('Trình duyệt không có XSLTProcessor và polyfill không nạp được (xem README).', 'warn');
 loadPack();
+waitPolyfill(xs).then((ok) => {
+  if (ok) initCWASA();
+});

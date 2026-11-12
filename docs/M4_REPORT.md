@@ -133,9 +133,10 @@ Các rủi ro đã biết:
 - **Lặp lại được với SiGML mẫu của UEA:** ghép 5 ký hiệu từ `BSLExamples/SignFiles` rồi phát 6 lần bằng `CWASA.playSiGMLText` thì có 1/2 lượt treo ở lần thứ 3. Vậy lỗi không đến từ dữ liệu VSL hay pipeline gloss.
 - **Bấm tay trong trình duyệt thường (2026-11-11):** người dùng mở `demo.html` trong Edge (cửa sổ thường, không gắn CDP), bấm Ký 6–10 câu liên tiếp trong cùng một phiên: **không treo**.
   - Môi trường: Edge trên máy phát triển (Windows 11). Agent không trực tiếp quan sát; kết quả do người dùng báo lại.
-  - Số lượt: 10 lượt, mỗi lượt khoảng 6–10 câu liên tiếp. Không lượt nào treo.
+  - Số lượt: 10 lượt. Không lượt nào treo.
+  - Số câu mỗi lượt: người dùng báo **khoảng** 6–10 câu liên tiếp; chưa có số câu chính xác của từng lượt (không có log ghi lại).
 - **Kết luận (mức chắc chắn trung bình-cao):** lỗi treo chỉ xuất hiện khi điều khiển trang qua CDP (`Runtime.evaluate` mỗi 100 ms). Chưa xác định được cơ chế cụ thể vì sao CDP gây treo vòng render CWASA. Không thêm watchdog, không sửa code.
-  - Cơ sở: 10/10 lượt bấm tay không treo (người dùng báo lại, agent không quan sát), so với các lượt qua CDP thường hỏng ở câu #2–#3.
+  - Cơ sở: 10/10 lượt bấm tay không treo (người dùng báo lại, agent không quan sát), so với các lượt qua CDP: 8/10 lượt treo (headless 6/6 lượt, hỏng ở câu #2 hoặc #3; cửa sổ thật 1/2 lượt, hỏng ở câu thứ 3; SiGML mẫu UEA 1/2 lượt, treo ở lần thứ 3).
   - Nếu sau này thấy treo khi bấm tay, xem lại hướng watchdog dựa trên hook `avatarfps` (báo lỗi và/hoặc khởi tạo lại avatar, không sửa jas/).
   - Đo tự động sau này nên giảm tần suất thăm dò CDP hoặc chỉ nghe sự kiện qua `Runtime.addBinding` thay vì `Runtime.evaluate` định kỳ.
 - Console luôn có `Error: animgenAllocate: jagid: 0` một lần lúc nạp SiGML đầu tiên, kể cả khi ký thành công. Chưa rõ có liên quan không.

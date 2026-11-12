@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XSLT Equivalence Check</title>
+<!--
+  Compares CWASA's H-SiGML -> G-SiGML conversion with the browser's NATIVE
+  XSLTProcessor vs xslt-polyfill@1.0.33 (vendor/, BSD-3-Clause).
+  Both runs use CWASA's own HtoG (HamNoSys parser + jas/loc2025/cwa/h2s.xsl),
+  so only the XSLT engine differs. Inputs: every hns_sign in
+  data/pack/demo_pack.json (each wrapped in <sigml>) and the 63 demo sentences.
+  Read-only: nothing is written to data/ or jas/.
+  Serve the repo root, open /tools/xslt_equiv.html in a browser that still has
+  native XSLT.
+-->
+<!--
+  Load order matters: the polyfill's Wasm fails to initialise if it is loaded
+  AFTER allcsa.js ("Cannot read properties of undefined (reading 'buffer')",
+  seen on Chrome 157). So: save native -> load polyfill (replaces) -> save
+  polyfill -> restore native -> load allcsa.js (all done in the module below).
+-->
+<script>window.T2S_NATIVE_XSLTP = window.XSLTProcessor;</script>
+<style>
+  :root { --bg:#f7f7f5; --fg:#1d1d1b; --muted:#5f5f5a; --ok:#1f7a3a; --bad:#b3261e; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161615; --fg:#ececea; --muted:#a3a39c; --ok:#5fc27e; --bad:#ef7d74; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 system-ui, sans-serif; }
+  main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+  pre { white-space: pre-wrap; word-break: break-word; font: 12px/1.4 ui-monospace, Consolas, monospace; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Kiểm tương đương XSLT: native vs polyfill</h1>
+  <p id="summary">Đang chạy…</p>
+  <pre id="out"></pre>
+</main>
+<script type="module">
+import { buildLexicon } from '../src/lexicon.js';
+import { textToSiGML } from '../src/pipeline.js';
+
+const out = document.getElementById('out');
+const say = (m) => { out.textContent += m + '\n'; };
+const result = window.T2S_EQUIV = { done: false, error: null };
+function report(obj) {
+  if (typeof window.t2sReport === 'function') { try { window.t2sReport(JSON.stringify(obj)); } catch { /* ignore */ } }
+}
+
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.charset = 'utf-8';
+    s.onload = res; s.onerror = () => rej(new Error(`cannot load ${src}`));
+    document.head.append(s);
+  });
+}
+
+function h2g(h, sigmlText) {
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    h.parseHtoGText(sigmlText, (res) => {
+      const ms = performance.now() - t0;
+      if (!res || res.errNum !== 0 || !res.errDoc) {
+        resolve({ ok: false, ms, text: `ERR ${res && res.errNum}: ${res && res.errMsg} ${res && res.errDetail || ''}` });
+      } else {
+        resolve({ ok: true, ms, text: new XMLSerializer().serializeToString(res.errDoc) });
+      }
+    });
+  });
+}
+
+async function sha256(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function buildCases(pack) {
+  const cases = buildCases(pack);
+  return cases;
+}
+
+// Browser with XSLT really disabled (e.g. --disable-features=XSLT): no native side to compare in-page,
+// so output the SHA-256 of every polyfill result; compare offline with the native hashes of a normal run.
+async function polyfillOnly() {
+  const tp = performance.now();
+  await loadScript('../vendor/xslt-polyfill/xslt-polyfill.min.js');
+  const rp = window.xsltPolyfillReady;
+  await (typeof rp === 'function' ? rp() : rp);
+  const polyReadyMs = performance.now() - tp;
+  if (typeof window.XSLTProcessor?.prototype?.isPolyfill !== 'function') throw new Error('Polyfill không cài XSLTProcessor.');
+  await loadScript('../jas/loc2025/cwa/allcsa.js');
+  const HtoG = window.getCWAEnv().get('HtoG');
+  const hPoly = new HtoG(new URL('../jas/loc2025/cwa/h2s.xsl', location.href).href);
+  if (!(await hPoly.XSLTProc.load)) throw new Error('HtoG polyfill: không nạp được h2s.xsl');
+  say(`Chế độ CHỈ polyfill (trình duyệt không có XSLTProcessor gốc); polyfill sẵn sàng sau ${polyReadyMs.toFixed(0)} ms`);
+  const pack = await (await fetch('../data/pack/demo_pack.json', { cache: 'no-store' })).json();
+  const cases = buildCases(pack);
+  const hashes = [];
+  let errors = 0;
+  for (const c of cases) {
+    const b = await h2g(hPoly, c.sigml);
+    if (!b.ok) errors++;
+    hashes.push({ kind: c.kind, id: c.id, ok: b.ok, polyfill: await sha256(b.text), len: b.text.length,
+      gestural: (b.text.match(/<hamgestural_sign/g) || []).length });
+  }
+  Object.assign(result, { done: true, polyfillOnly: true, ua: navigator.userAgent, polyReadyMs, cases: cases.length, errors, hashes });
+  say(JSON.stringify({ cases: cases.length, errors }, null, 1));
+  document.getElementById('summary').textContent = `CHỈ polyfill: ${cases.length} trường hợp, ${errors} lỗi; so hash với lượt native.`;
+  report({ type: 'equiv', ...result });
+}
+
+function firstDiff(a, b) {
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  return { at: i, native: a.slice(Math.max(0, i - 80), i + 120), polyfill: b.slice(Math.max(0, i - 80), i + 120) };
+}
+
+async function main() {
+  const NativeXP = window.T2S_NATIVE_XSLTP;
+  if (typeof NativeXP !== 'function') return polyfillOnly();
+
+  // 1) Load the polyfill unconditionally (replaces window.XSLTProcessor), wait for Wasm.
+  window.xsltUsePolyfillOnlyIfNeeded = false;
+  const tp = performance.now();
+  await loadScript('../vendor/xslt-polyfill/xslt-polyfill.min.js');
+  // 1.0.33: xsltPolyfillReady is a function returning a Promise.
+  const rp = window.xsltPolyfillReady;
+  await (typeof rp === 'function' ? rp() : rp);
+  const polyReadyMs = performance.now() - tp;
+  const PolyXP = window.XSLTProcessor;
+  if (typeof PolyXP.prototype.isPolyfill !== 'function') throw new Error('Polyfill không thay XSLTProcessor.');
+
+  // 2) Restore native, then load CWASA.
+  window.XSLTProcessor = NativeXP;
+  await loadScript('../jas/loc2025/cwa/allcsa.js');
+  const HtoG = window.getCWAEnv().get('HtoG');
+  const xslUrl = new URL('../jas/loc2025/cwa/h2s.xsl', location.href).href;
+
+  // 3) CWASA HtoG bound to the NATIVE processor (XSLT wrapper picks window.XSLTProcessor at load time).
+  const hNative = new HtoG(xslUrl);
+  if (!(await hNative.XSLTProc.load)) throw new Error('HtoG native: không nạp được h2s.xsl');
+
+  // 4) Second HtoG bound to the POLYFILL.
+  window.XSLTProcessor = PolyXP;
+  const hPoly = new HtoG(xslUrl);
+  if (!(await hPoly.XSLTProc.load)) throw new Error('HtoG polyfill: không nạp được h2s.xsl');
+
+  const engNative = hNative.XSLTProc._xsltProc instanceof NativeXP ? 'native' : 'KHÁC';
+  const engPoly = typeof hPoly.XSLTProc._xsltProc.isPolyfill === 'function' ? 'polyfill' : 'KHÁC';
+  say(`Bộ xử lý: A=${engNative}, B=${engPoly}; polyfill sẵn sàng sau ${polyReadyMs.toFixed(0)} ms; XSL=${xslUrl}`);
+  if (engNative !== 'native' || engPoly !== 'polyfill') throw new Error('Không tách được hai bộ xử lý.');
+
+  const pack = await (await fetch('../data/pack/demo_pack.json', { cache: 'no-store' })).json();
+  const cases = Object.entries(pack.signs).map(([gloss, hns]) => ({ kind: 'sign', id: gloss, sigml: `<sigml>\n${hns}\n</sigml>` }));
+  const lex = buildLexicon(Object.keys(pack.signs), pack.synonyms);
+  pack.sentences.forEach((s, i) => {
+    const r = textToSiGML(s.source, lex, pack.signs, {});
+    if (r.sigml) cases.push({ kind: 'sentence', id: `#${i} ${s.source}`, sigml: r.sigml });
+  });
+
+  const stats = { sign: { n: 0, same: 0, diff: 0, errBoth: 0, errOne: 0 }, sentence: { n: 0, same: 0, diff: 0, errBoth: 0, errOne: 0 } };
+  const diffs = [];
+  const hashes = [];
+  const ms = { native: 0, polyfill: 0 };
+  for (const c of cases) {
+    const a = await h2g(hNative, c.sigml);
+    const b = await h2g(hPoly, c.sigml);
+    ms.native += a.ms; ms.polyfill += b.ms;
+    hashes.push({ kind: c.kind, id: c.id, native: await sha256(a.text), polyfill: await sha256(b.text) });
+    const st = stats[c.kind]; st.n++;
+    if (!a.ok && !b.ok) { st.errBoth++; diffs.push({ ...c, sigml: undefined, type: 'cả hai lỗi', native: a.text, polyfill: b.text }); }
+    else if (a.ok !== b.ok) { st.errOne++; diffs.push({ ...c, sigml: undefined, type: 'một bên lỗi', native: a.text.slice(0, 300), polyfill: b.text.slice(0, 300) }); }
+    else if (a.text === b.text) {
+      st.same++;
+      // Sanity: identical output must still be real G-SiGML, not two empty documents.
+      const nG = (a.text.match(/<hamgestural_sign\b/g) || []).length;
+      st.gestural = (st.gestural || 0) + nG;
+      st.chars = (st.chars || 0) + a.text.length;
+      if (nG === 0) st.sameButNoGestural = (st.sameButNoGestural || 0) + 1;
+    }
+    else { st.diff++; diffs.push({ ...c, sigml: undefined, type: 'khác chuỗi', lenNative: a.text.length, lenPolyfill: b.text.length, ...firstDiff(a.text, b.text) }); }
+  }
+  Object.assign(result, { done: true, ua: navigator.userAgent, polyReadyMs, stats, diffs, msTotal: ms, cases: cases.length, hashes });
+  say(JSON.stringify({ stats, msTotal: ms }, null, 1));
+  if (diffs.length) say('Chỗ khác:\n' + JSON.stringify(diffs, null, 1));
+  const allSame = diffs.length === 0;
+  const sm = document.getElementById('summary');
+  sm.className = allSame ? 'ok' : 'bad';
+  sm.textContent = `ký hiệu: ${stats.sign.same}/${stats.sign.n} giống · câu: ${stats.sentence.same}/${stats.sentence.n} giống · ${diffs.length} trường hợp khác/lỗi`;
+  report({ type: 'equiv', ...result });
+}
+
+main().catch((e) => {
+  result.done = true; result.error = String(e && e.stack || e);
+  say('LỖI: ' + result.error);
+  document.getElementById('summary').textContent = 'Lỗi: ' + e;
+  report({ type: 'equiv', ...result });
+});
+</script>
+</body>
+</html>
