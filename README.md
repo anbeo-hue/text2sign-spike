@@ -46,11 +46,11 @@ Các trình duyệt đang gỡ XSLT. Lịch dưới đây do chủ dự án cung
 
 | Trình duyệt | Mốc |
 |---|---|
-| Chrome | Tắt XSLT mặc định từ **Chrome 155 (17/11/2026)** |
+| Chrome | Tắt XSLT mặc định từ **Chrome 158 stable (17/11/2026)** (người dùng sửa ngày 2026-11-13, trước đó ghi nhầm "Chrome 155") |
 | Edge | Tắt mặc định từ **Edge 159 (giữa tháng 12/2026)**; chính sách `XSLTEnabled` chỉ bật lại tạm thời đến **Edge 176 (mùa hè 2027)** |
 
-Ghi chú: ngày 2026-11-11, Chrome 157 và Edge 157 trên máy này **vẫn còn** `XSLTProcessor`. Điều này không khớp với mốc
-"Chrome 155 tắt từ 17/11/2026" ở trên, nên mốc đó cần đối chiếu lại.
+Ghi chú: ngày 2026-11-11 và 2026-11-13, Chrome 157 và Edge 157 trên máy này **vẫn còn** `XSLTProcessor`, phù hợp với mốc
+"Chrome 158 stable, 17/11/2026" ở trên (mốc này vẫn chưa đối chiếu với nguồn chính thức).
 
 Polyfill: **xslt-polyfill 1.0.33** (npm `xslt-polyfill`, mã nguồn https://github.com/mfreed7/xslt_polyfill, tác giả Mason Freed),
 giấy phép **BSD-3-Clause**. Tarball `xslt-polyfill-1.0.33.tgz` khớp integrity
@@ -75,6 +75,16 @@ Thiết kế trong `demo.html`:
 Kiểm tương đương: `tools/xslt_equiv.html` (mở qua server, trên trình duyệt còn XSLT native) dùng chính `HtoG` của CWASA
 (parser HamNoSys + `h2s.xsl`) với hai bộ XSLT, native và polyfill, rồi so chuỗi G-SiGML cho mọi `hns_sign`
 trong `data/pack/demo_pack.json` và cả 63 câu demo. Trang chỉ đọc dữ liệu. Kết quả xem `docs/STATUS.md`.
+Nếu trình duyệt KHÔNG có XSLT native, trang chỉ chạy polyfill và xuất SHA-256 của từng kết quả để so với lượt native.
+
+Thử trên trình duyệt đã tắt XSLT thật (không cần bản Beta/Canary): khởi động Chrome/Edge với cờ
+`--disable-features=XSLT` (cùng tính năng Blink mà trình duyệt sẽ tắt; kiểm trên Chrome 157 / Edge 157: không còn
+`XSLTProcessor`, trang XML dùng `<?xml-stylesheet?>` báo "It uses XSLT, which the browser…"). Lưu ý Chromium chỉ nhận
+cờ `--disable-features` **cuối cùng**, nên gộp mọi tính năng vào một cờ. Ví dụ:
+
+```
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir=%TEMP%\t2s-noxslt --disable-features=XSLT http://127.0.0.1:8080/demo.html
+```
 
 ## Giấy phép và nguồn bên thứ ba (không commit vào repo)
 

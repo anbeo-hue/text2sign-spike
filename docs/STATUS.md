@@ -1,4 +1,62 @@
-# Trạng thái dự án (cập nhật 2026-11-12)
+# Trạng thái dự án (cập nhật 2026-11-13)
+
+## Polyfill XSLT: thử trên trình duyệt TẮT XSLT THẬT (2026-11-13)
+
+**Cách tắt:** máy chỉ có Chrome Stable 157.0.8103.50 và Edge Stable 157.0.4341.46 (không có Beta/Canary/Dev; không cài thêm).
+Dùng cờ `--disable-features=XSLT` (tính năng Blink, cùng công tắc mà chrome://flags/chính sách điều khiển). Kiểm bằng
+`probe_xslt.mjs` (scratchpad, headless, 1 `Runtime.evaluate`/trang):
+
+| Trình duyệt | Cờ | `typeof XSLTProcessor` gốc | Trang XML có `<?xml-stylesheet?>` | `demo.html` mặc định |
+|---|---|---|---|---|
+| Chrome 157 | không | function | biến đổi được | native |
+| Chrome 157 | `--disable-features=XSLT` | không có | "This document cannot be formatted as intended. It uses XSLT, which the br…" | tự nạp polyfill |
+| Chrome 157 | `--disable-blink-features=XSLT` | không có | như trên | tự nạp polyfill |
+| Edge 157 | không | function | biến đổi được | native |
+| Edge 157 | `--disable-features=XSLT` | không có | như trên | tự nạp polyfill |
+
+Đây là tắt ở mức trình duyệt (khác hôm qua: chỉ `delete window.XSLTProcessor` bằng JS). Chưa thử bản Chrome đã tắt XSLT
+mặc định (Stable 157 trên máy vẫn bật).
+
+**Kiểm tương đương khi tắt XSLT thật** (`tools/xslt_equiv.html`, chế độ "chỉ polyfill": SHA-256 từng G-SiGML, so với hash native
+của lượt Chrome thường cùng ngày `equiv_chrome_1113.json`: 124/124 + 63/63 giống, 0 lỗi console):
+
+| Trình duyệt (XSLT tắt) | 124 hns_sign | 63 câu demo | Lỗi | `hamgestural_sign` | Polyfill sẵn sàng |
+|---|---|---|---|---|---|
+| Chrome 157 | 124/124 khớp hash native | 63/63 | 0 | 124 + 242 | 72 ms |
+| Edge 157 | 124/124 khớp hash native | 63/63 | 0 | 124 + 242 | 73 ms |
+
+**Avatar, 10 câu demo đầu/lượt, cửa sổ thật, CDP không thăm dò** (`cdp_run.mjs`; nay gộp đúng một `--disable-features=`):
+
+| Tổ hợp | Lượt | Câu xong / gửi | hns_sign gửi = chỉ số `s` khác nhau | `avatarsign` thô | Nạp avatar (s) | FPS TB (min) |
+|---|---|---|---|---|---|---|
+| Chrome XSLT tắt, URL mặc định (tự polyfill) | 3 | 30/30 | 99 = 99 | 129 | 0,89 / 1,23 / 1,02 | 32,1 / 30,6 / 30,5 (min 29,7) |
+| Chrome XSLT tắt, `?xslt=polyfill` | 1 | 10/10 | 33 = 33 | 43 | 0,87 | 32,5 (min 29,6) |
+| Chrome native (đối chứng cùng ngày) | 2 | 20/20 | 66 = 66 | 86 | 0,73 / 0,77 | 34,5 / 33,5 (min 30,2) |
+| Edge XSLT tắt (tự polyfill) | 2 | 7/9, **treo 2/2** (câu #4, #5) | 14 = 14 | 21 | 0,93 / 0,77 | 33,6 / 36,3 (3–4 mẫu) |
+| Edge native (đối chứng cùng ngày) | 2 | 14/15, **treo 1/2** (câu #5); lượt kia 10/10 | 41 = 41 | 55 | 0,69 / 0,68 | 32,2 / 34,1 |
+
+- "Nạp avatar" = từ `CWASA.init` đến `avatarready`, KHÔNG gồm thời gian polyfill sẵn sàng (đo riêng ở trên: 67–91 ms).
+- Chrome polyfill nạp chậm hơn native ~0,1–0,5 s và FPS TB thấp hơn ~2–4 khung/s trong các lượt này (25 mẫu/lượt, ít mẫu,
+  chưa đủ để khẳng định là khác biệt thật). Không lượt Chrome nào treo (40/40 câu polyfill, 20/20 native).
+- Mọi lượt treo trên Edge cùng dấu hiệu: `play` → `animactive` nhưng không có `animidle` trong 90 s, ô FPS vẫn ~32–34
+  (vòng render còn chạy). Xảy ra ở cả native và polyfill → không do polyfill; vẫn nghi do CDP (chưa xác định).
+- Gộp cờ `--disable-features` (hôm qua `CalculateNativeWinOcclusion` bị cờ sau ghi đè nên thực chất không tắt) không làm hết treo trên Edge.
+- Console mỗi lượt chỉ có `animgenAllocate: jagid: 0` và `Time Format: 0` (như hôm qua, cả hai chế độ).
+- Dữ liệu thô: `evidence/xslt_polyfill/av_*_xsltoff*.json`, `av_*_native_1113_*.json`, `equiv_*_1113.json`, `equiv_*_xsltoff.json` (bị `.gitignore`).
+
+### Bấm tay không qua CDP (2026-11-13)
+
+- Môi trường: Chrome 157 chạy với `--disable-features=XSLT`, `demo.html` mặc định (polyfill tự phát hiện), không gắn CDP.
+- 10 câu demo bấm liên tiếp: nho xanh; không ăn; bức này thế nào; không làm , không ăn; anh nói sao cũng được;
+  vàng gió , đỏ mưa; mưa trắng , nắng đen; mai mẹ về; khuya rồi; nói hết. **Không câu nào treo.**
+- Nguồn: người dùng báo lại, kèm ảnh chụp câu cuối. Agent không quan sát trực tiếp, không có log; không có số FPS/thời gian nạp từ lượt này.
+- Gloss: chỉ **19/63** câu demo có gloss theo luật khớp chính xác gloss tham chiếu (agent chạy lại `textToSiGML` trên
+  `data/pack/demo_pack.json` ngày 2026-11-13: khớp nguyên chuỗi 19/63; nếu coi `_` như dấu cách thì 22/63).
+  Gloss tham chiếu **chưa được người hiểu VSL xác nhận**. Avatar ký đúng theo dữ liệu, không có nghĩa là câu ký đúng VSL.
+
+**Chưa kiểm chứng:** bấm tay (không CDP) ở chế độ polyfill / XSLT tắt trên **Edge**; bấm tay có ghi log/FPS trên Chrome;
+bản Chrome thật sự tắt XSLT mặc định (Chrome 158 stable, 17/11/2026).
+`tools/xslt_equiv.html` đã sửa (thêm chế độ chỉ-polyfill + hash); lượt so trực tiếp chạy lại sau khi sửa vẫn 124/124 + 63/63.
 
 ## Polyfill XSLT (2026-11-12)
 
@@ -37,7 +95,7 @@ phải thêm cờ tắt phát hiện cửa sổ bị che, nếu không trang ở
 - Dữ liệu thô + script CDP: `evidence/xslt_polyfill/` (bị `.gitignore`).
 
 **Chưa kiểm chứng:** chế độ polyfill khi trình duyệt THẬT SỰ tắt XSLT (mới chỉ giả lập bằng cách xóa `XSLTProcessor`);
-bấm tay chế độ polyfill; Edge bấm tay với chế độ polyfill (để phân biệt treo do CDP); mốc Chrome 155 / Edge 159 (Chrome 157 hiện vẫn còn XSLT).
+bấm tay chế độ polyfill; Edge bấm tay với chế độ polyfill (để phân biệt treo do CDP); mốc Chrome 158 stable (17/11/2026) / Edge 159 (Chrome 157 hiện vẫn còn XSLT).
 
 ## M4: demo văn bản → gloss → SiGML → avatar CWASA
 

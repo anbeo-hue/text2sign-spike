@@ -76,7 +76,12 @@ async function sha256(text) {
 }
 
 function buildCases(pack) {
-  const cases = buildCases(pack);
+  const cases = Object.entries(pack.signs).map(([gloss, hns]) => ({ kind: 'sign', id: gloss, sigml: `<sigml>\n${hns}\n</sigml>` }));
+  const lex = buildLexicon(Object.keys(pack.signs), pack.synonyms);
+  pack.sentences.forEach((s, i) => {
+    const r = textToSiGML(s.source, lex, pack.signs, {});
+    if (r.sigml) cases.push({ kind: 'sentence', id: `#${i} ${s.source}`, sigml: r.sigml });
+  });
   return cases;
 }
 
@@ -102,7 +107,7 @@ async function polyfillOnly() {
     const b = await h2g(hPoly, c.sigml);
     if (!b.ok) errors++;
     hashes.push({ kind: c.kind, id: c.id, ok: b.ok, polyfill: await sha256(b.text), len: b.text.length,
-      gestural: (b.text.match(/<hamgestural_sign/g) || []).length });
+      gestural: (b.text.match(/<hamgestural_sign\b/g) || []).length });
   }
   Object.assign(result, { done: true, polyfillOnly: true, ua: navigator.userAgent, polyReadyMs, cases: cases.length, errors, hashes });
   say(JSON.stringify({ cases: cases.length, errors }, null, 1));
@@ -152,12 +157,7 @@ async function main() {
   if (engNative !== 'native' || engPoly !== 'polyfill') throw new Error('Không tách được hai bộ xử lý.');
 
   const pack = await (await fetch('../data/pack/demo_pack.json', { cache: 'no-store' })).json();
-  const cases = Object.entries(pack.signs).map(([gloss, hns]) => ({ kind: 'sign', id: gloss, sigml: `<sigml>\n${hns}\n</sigml>` }));
-  const lex = buildLexicon(Object.keys(pack.signs), pack.synonyms);
-  pack.sentences.forEach((s, i) => {
-    const r = textToSiGML(s.source, lex, pack.signs, {});
-    if (r.sigml) cases.push({ kind: 'sentence', id: `#${i} ${s.source}`, sigml: r.sigml });
-  });
+  const cases = buildCases(pack);
 
   const stats = { sign: { n: 0, same: 0, diff: 0, errBoth: 0, errOne: 0 }, sentence: { n: 0, same: 0, diff: 0, errBoth: 0, errOne: 0 } };
   const diffs = [];
