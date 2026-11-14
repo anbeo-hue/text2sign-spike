@@ -1,4 +1,12 @@
-# Trạng thái dự án (cập nhật 2026-11-13)
+# Trạng thái dự án (cập nhật 2026-11-14)
+
+## Nhận xét của người hiểu VSL về chiều văn bản → ký hiệu (2026-11-13)
+
+- Một người hiểu VSL đã xem chiều văn bản → ký hiệu (gói từ điển cục bộ) và nhận xét là **chấp nhận được**.
+- Nguồn: người dùng báo lại ngày 13/11/2026. **Chưa có xác nhận bằng văn bản**; chưa biết người đó đã xem những từ/câu nào
+  và theo biến thể vùng nào. Không coi đây là xác nhận từng ký hiệu hay xác nhận gloss tham chiếu (vẫn chưa được xác nhận, xem mục dưới).
+- Chiều ký hiệu → văn bản (19 từ) vẫn **chưa** được người hiểu VSL xác nhận.
+- Trang `unified/index.html` ghi đúng nội dung này ở dòng chú thích đầu trang.
 
 ## Polyfill XSLT: thử trên trình duyệt TẮT XSLT THẬT (2026-11-13)
 

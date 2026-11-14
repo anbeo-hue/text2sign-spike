@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dịch ngôn ngữ ký hiệu Việt Nam hai chiều (bản thử nghiệm)</title>
+<link rel="icon" href="data:,"><!-- no favicon file: avoids a 404 in the console -->
+
+<style>
+  :root { color-scheme: dark; --bg:#14161a; --card:#1d2026; --line:#2c313a; --fg:#e8e8ea; --muted:#9aa0a6; --accent:#4a90d9; --ok:#6fcf97; --warn:#e0b341; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, "Segoe UI", sans-serif; display: flex; flex-direction: column; }
+  header { padding: 10px 16px 0; border-bottom: 1px solid var(--line); }
+  h1 { font-size: 18px; margin: 0; }
+  .note { color: var(--muted); font-size: 12.5px; margin: 2px 0 8px; }
+  nav { display: flex; gap: 4px; align-items: flex-end; flex-wrap: wrap; }
+  nav button.tab { font: inherit; padding: 8px 16px; border: 1px solid var(--line); border-bottom: 0; border-radius: 8px 8px 0 0; background: transparent; color: var(--muted); cursor: pointer; }
+  nav button.tab[aria-selected="true"] { background: var(--card); color: var(--fg); border-color: var(--accent); }
+  nav .spacer { flex: 1; }
+  nav button.ghost, .words button { font: inherit; font-size: 13px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--fg); cursor: pointer; margin-bottom: 4px; }
+  nav button.ghost:hover, .words button:hover { border-color: var(--accent); }
+  main { flex: 1; min-height: 0; position: relative; }
+  iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--bg); }
+  iframe[hidden] { display: none; }
+  details.words { padding: 6px 16px; border-bottom: 1px solid var(--line); background: var(--card); font-size: 13.5px; }
+  details.words summary { cursor: pointer; color: var(--muted); }
+  table { border-collapse: collapse; margin: 8px 0 4px; }
+  th, td { text-align: left; padding: 2px 14px 2px 0; font-variant-numeric: tabular-nums; }
+  th { color: var(--muted); font-weight: 500; }
+  #msg { position: fixed; right: 12px; bottom: 12px; max-width: 380px; padding: 8px 12px; border-radius: 8px; background: #2a2e36; border: 1px solid var(--line); font-size: 13px; display: none; z-index: 5; }
+  #msg.warn { border-color: var(--warn); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Dịch ngôn ngữ ký hiệu Việt Nam hai chiều <span class="note">(bản thử nghiệm, chạy trong trình duyệt)</span></h1>
+  <div class="note">Ký hiệu → văn bản: 19 từ, <b>chưa</b> được người hiểu VSL xác nhận. Văn bản → ký hiệu: gói từ điển cục bộ; một người hiểu VSL đã xem và nhận xét chiều này chấp nhận được, nhưng chưa ghi rõ phạm vi từ/vùng.</div>
+  <nav role="tablist">
+    <button class="tab" id="tab-s2t" role="tab" aria-selected="true" aria-controls="f-s2t">Ký hiệu → Văn bản</button>
+    <button class="tab" id="tab-t2s" role="tab" aria-selected="false" aria-controls="f-t2s">Văn bản → Ký hiệu</button>
+    <span class="spacer"></span>
+    <button class="ghost" id="relay" title="Lấy từ vừa nhận diện và cho avatar ký lại">Cho avatar ký lại từ vừa nhận</button>
+  </nav>
+</header>
+<details class="words">
+  <summary>Từ gợi ý cho demo (bấm để xem · bấm "Ký thử" để avatar ký)</summary>
+  <table>
+    <tr><th>Từ</th><th>Nhận diện theo người ký*</th><th>Avatar</th><th></th></tr>
+    <tbody id="wordRows"></tbody>
+  </table>
+  <div class="note">*Đánh giá theo người ký trên dữ liệu có sẵn (số clip rất khác nhau giữa các từ), <b>không phải</b> đo trên webcam. Avatar: từ có trong gói từ điển cục bộ; chưa xác nhận từng ký hiệu có đúng không.</div>
+</details>
+<main>
+  <iframe id="f-s2t" title="Ký hiệu sang văn bản" allow="camera; autoplay"></iframe>
+  <iframe id="f-t2s" title="Văn bản sang ký hiệu" hidden></iframe>
+</main>
+<div id="msg" role="status"></div>
+<script>
+(function () {
+  // Same server, same origin: the two pages are the unmodified existing demos.
+  const S2T = 's2t/index.html';
+  const T2S = '../demo.html';
+  const WORDS = [ // [word, correct, total] from signer_eval/report.txt (by-signer CV, VSL400 clips only)
+    ['Nhà', 25, 25], ['Mưa', 15, 15], ['Có', 19, 19], ['Bây giờ', 42, 43],
+    ['Cháu', 23, 24], ['Đau', 23, 24], ['Em', 30, 32], ['Cảm ơn', 28, 31],
+  ];
+  const $ = (id) => document.getElementById(id);
+  const fS = $('f-s2t'), fT = $('f-t2s');
+  let active = 's2t', msgTimer = null;
+
+  function say(text, warn) {
+    const m = $('msg'); m.textContent = text; m.className = warn ? 'warn' : ''; m.style.display = 'block';
+    clearTimeout(msgTimer); msgTimer = setTimeout(() => { m.style.display = 'none'; }, 6000);
+  }
+
+  function show(which) {
+    active = which;
+    $('tab-s2t').setAttribute('aria-selected', which === 's2t');
+    $('tab-t2s').setAttribute('aria-selected', which === 't2s');
+    fS.hidden = which !== 's2t';
+    fT.hidden = which !== 't2s';
+    if (which === 's2t') {
+      // reloaded on return: its camera/MediaPipe loop is stopped while hidden (saves CPU for the avatar)
+      if (!fS.getAttribute('src') || fS.getAttribute('src') === 'about:blank') fS.src = S2T;
+    } else {
+      if (!fT.getAttribute('src')) fT.src = T2S;
+      fS.src = 'about:blank'; // releases the camera and stops the recognition loop
+    }
+  }
+  $('tab-s2t').onclick = () => show('s2t');
+  $('tab-t2s').onclick = () => show('t2s');
+
+  function whenReady(getter, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const t0 = Date.now();
+      (function poll() {
+        let v = null; try { v = getter(); } catch (e) { /* page not ready */ }
+        if (v) return resolve(v);
+        if (Date.now() - t0 > timeoutMs) return reject(new Error('hết thời gian chờ'));
+        setTimeout(poll, 250);
+      })();
+    });
+  }
+
+  async function signWord(text) {
+    show('t2s');
+    say('Đang chờ avatar sẵn sàng…');
+    try {
+      const doc = await whenReady(() => {
+        const d = fT.contentDocument;
+        const b = d && d.getElementById('playBtn');
+        return b && !b.disabled ? d : null;
+      }, 90000);
+      doc.getElementById('inputText').value = text;
+      doc.getElementById('playBtn').click();
+      say('Avatar đang ký: ' + text);
+    } catch (e) {
+      say('Avatar chưa sẵn sàng (' + e.message + '). Thử bấm "Ký" trong tab Văn bản → Ký hiệu.', true);
+    }
+  }
+
+  $('relay').onclick = () => {
+    let word = '';
+    try {
+      const d = fS.contentDocument;
+      const el = d && d.getElementById('word');
+      word = el && !el.classList.contains('unsure') ? el.textContent.trim() : '';
+    } catch (e) { /* ignore */ }
+    if (!word || word === '—') { say('Chưa có từ nào được nhận chắc chắn để chuyển sang avatar.', true); return; }
+    signWord(word.toLowerCase());
+  };
+
+  const tb = $('wordRows');
+  for (const [w, k, n] of WORDS) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td></td><td></td><td></td><td></td>';
+    tr.children[0].textContent = w;
+    tr.children[1].textContent = k + '/' + n + ' (' + Math.round(100 * k / n) + '%)';
+    tr.children[2].textContent = 'có trong gói';
+    const b = document.createElement('button'); b.textContent = 'Ký thử'; b.onclick = () => signWord(w.toLowerCase());
+    tr.children[3].append(b);
+    tb.append(tr);
+  }
+  fS.src = S2T;
+})();
+</script>
+</body>
+</html>
