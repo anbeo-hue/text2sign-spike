@@ -1,5 +1,25 @@
 # Trạng thái dự án (cập nhật 2026-11-14)
 
+## Giao diện thống nhất v2 (`unified/v2/`, nhánh `ui-unified`, 2026-11-14)
+
+- Trang mới `unified/v2/index.html` + `v2.css` + `v2.js`; `unified/index.html` giữ nguyên làm dự phòng. Không tải font/thư viện từ mạng.
+- Không sửa `demo.html`, `src/`, `jas/`, `unified/s2t/` (md5 `app.js` 50c4d427…, hàm `loop` ae8d360d… như trước). Hai trang cũ chạy trong iframe
+  cùng nguồn gốc; v2 tiêm CSS ẩn phần thừa, theo dõi DOM bằng MutationObserver, bấm hộ nút có sẵn, và nối thêm vào `window.t2sReport`
+  (hook sự kiện có sẵn của `demo.js`) để biết khi avatar thật sự bắt đầu ký (`animactive`).
+- Lịch sử: `localStorage` khóa `vsl_history_v1`, tối đa 200 lượt, chỉ `side, text, status, at` (+ `conf` cho lượt người ký).
+  Khóa thứ hai `vsl_help_seen_v1` = "1" (đã xem hộp thoại). Từ "chưa chắc" chỉ hiện trong phiên.
+- Kiểm qua CDP (Chrome 157, camera giả, một `--disable-features`, profile mới): 19/19 bước đạt ở cả 3 cấu hình (XSLT gốc; XSLT tắt;
+  XSLT tắt + chặn DNS jsDelivr/GCS). Mỗi lần Ký/từ gợi ý/"Cho avatar ký lại": hns_sign gửi = chỉ số `s` avatarsign và đúng 1 lượt người nghe.
+  0 lỗi mạng, 0 request ra ngoài máy; console chỉ còn 2 lỗi `animgenAllocate` của CWASA (có từ trước), cảnh báo MediaPipe, và cảnh báo
+  "XSLT deprecated" (chỉ khi XSLT gốc).
+- Xuất .txt: nội dung kiểm bằng cách bắt Blob mà nút tạo ra, tên file qua `downloadWillBegin`. **Lưu file thật chưa kiểm chứng**: qua CDP
+  trên máy này mọi lượt tải (kể cả file tĩnh `README.md`) đều kết thúc `canceled`, nguyên nhân chưa rõ.
+- FPS/độ trễ trang nhận diện (camera giả, KHÔNG đại diện camera thật; trung vị 15 mẫu/lượt), dao động lớn giữa các lượt:
+  một mình 36 và 29 FPS (27 và 34 ms); trong v2, avatar hiện và rảnh: 29, 26 (đo riêng) và 42, 40, 43 (trong 3 lượt kiểm đầy đủ);
+  v2 với avatar ẩn (chỉ để chẩn đoán): 31, 36. Chưa kết luận được avatar làm giảm FPS bao nhiêu. Trong v2, mẫu đầu sau khi sẵn sàng hay chậm (4–5 FPS).
+- Dữ liệu thô và script: `evidence/unified/cdp_v2.mjs`, `v2_*.json`, `perf_*.json`, `shots/` (bị `.gitignore`).
+- **Chưa kiểm chứng:** camera thật, nhận diện thật, Edge, bấm tay trên màn hình thật, mạng thật ở nơi demo, lưu file .txt thật, trình đọc màn hình.
+
 ## Trang ký hiệu → văn bản (`unified/s2t/`) chạy ngoại tuyến (2026-11-14)
 
 `unified/s2t/` là bản sao bị `.gitignore` (bản gốc `C:\vsl-kaggle-sample\demo` không sửa). MediaPipe đã tải sẵn vào

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dịch ngôn ngữ ký hiệu Việt Nam (bản thử nghiệm)</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="v2.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+        <rect width="40" height="40" rx="10" fill="#0F6E8C"></rect>
+        <path d="M10 15h18m0 0l-5-5m5 5l-5 5" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M30 25H12m0 0l5-5m-5 5l5 5" fill="none" stroke="#FFD9B8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+      <h1>Dịch ngôn ngữ ký hiệu Việt Nam</h1>
+      <span class="pill pill-trial">Bản thử nghiệm</span>
+    </div>
+    <div class="top-actions">
+      <button type="button" class="btn" id="helpBtn" aria-haspopup="dialog">Hướng dẫn</button>
+      <button type="button" class="btn" id="advBtn" aria-expanded="false" aria-controls="drawer">Nâng cao</button>
+    </div>
+  </header>
+
+  <p class="limits"><b>Giới hạn hiện tại.</b> Ký hiệu → văn bản: 19 từ, chưa được người hiểu VSL xác nhận. Văn bản → ký hiệu: gói từ điển cục bộ, một người hiểu VSL đã xem và nhận xét chấp nhận được; phạm vi từ và vùng chưa rõ.</p>
+
+  <div class="panels">
+    <!-- Signer: the existing recognition page (unified/s2t/) in a same-origin iframe; its own controls are hidden by injected CSS. -->
+    <section class="card" aria-labelledby="s2tTitle">
+      <div class="card-head">
+        <span class="role role-signer">Người ký</span>
+        <h2 id="s2tTitle">Ký hiệu → Văn bản</h2>
+      </div>
+      <div class="stage stage-camera">
+        <iframe id="fS2T" src="../s2t/index.html" title="Camera và nhận diện ký hiệu" allow="camera; autoplay"></iframe>
+      </div>
+      <div class="row">
+        <button type="button" class="btn btn-primary" id="camBtn" disabled>Bật camera và tải mô hình</button>
+        <span class="status" id="camStatus" role="status">Đang tải trang nhận diện…</span>
+      </div>
+      <p class="err" id="camErr"></p>
+      <div class="result" aria-live="polite">
+        <span class="label">Kết quả gần nhất</span>
+        <div class="row">
+          <span class="result-word" id="lastWord">—</span>
+          <span class="pill" id="lastPill" hidden></span>
+        </div>
+        <p class="hint">Đặt tay xuống thấp (vị trí nghỉ), nâng tay ký, rồi hạ tay xuống hẳn để nhận kết quả.</p>
+      </div>
+    </section>
+
+    <!-- Listener: the existing avatar page (demo.html) in a same-origin iframe; only the avatar stage is shown. -->
+    <section class="card" aria-labelledby="t2sTitle">
+      <div class="card-head">
+        <span class="role role-listener">Người nghe</span>
+        <h2 id="t2sTitle">Văn bản → Ký hiệu</h2>
+      </div>
+      <div class="stage stage-avatar">
+        <iframe id="fT2S" src="../../demo.html" title="Avatar ký hiệu CWASA"></iframe>
+      </div>
+      <div class="field">
+        <label for="sayText">Câu cần ký</label>
+        <textarea id="sayText" rows="2" spellcheck="false"></textarea>
+      </div>
+      <div class="row">
+        <button type="button" class="btn btn-listen" id="playBtn" disabled>Ký</button>
+        <button type="button" class="btn" id="stopBtn" disabled>Dừng</button>
+        <span class="status" id="avStatus" role="status">Đang tải avatar…</span>
+      </div>
+      <div class="row" role="group" aria-label="Từ gợi ý">
+        <span class="hint">Từ gợi ý:</span>
+        <button type="button" class="btn btn-chip" data-word="nhà">Nhà</button>
+        <button type="button" class="btn btn-chip" data-word="mưa">Mưa</button>
+        <button type="button" class="btn btn-chip" data-word="có">Có</button>
+        <button type="button" class="btn btn-chip" data-word="bây giờ">Bây giờ</button>
+      </div>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="convTitle">
+    <div class="conv-head">
+      <h2 id="convTitle" style="margin:0;font-size:18px;font-weight:600">Hội thoại</h2>
+      <div class="row">
+        <button type="button" class="btn" id="exportBtn">Xuất file .txt</button>
+        <button type="button" class="btn" id="clearBtn" aria-controls="clearConfirm" aria-expanded="false">Xóa lịch sử</button>
+      </div>
+    </div>
+    <div class="confirm" id="clearConfirm" role="group" aria-labelledby="clearQ" hidden>
+      <span id="clearQ">Xóa toàn bộ lịch sử hội thoại trên máy này? Không hoàn tác được.</span>
+      <button type="button" class="btn btn-danger" id="clearYes">Xóa</button>
+      <button type="button" class="btn" id="clearNo">Hủy</button>
+    </div>
+    <p class="conv-empty" id="convEmpty">Chưa có lượt nào. Hãy ký hoặc gõ một từ.</p>
+    <ol class="conv-list" id="convList" aria-live="polite"></ol>
+    <p class="foot">Lịch sử chỉ lưu chữ, giờ và mức tin cậy trên máy này, trong trình duyệt. Không lưu video, ảnh hay điểm mốc bàn tay, và không gửi đi đâu.</p>
+  </section>
+
+</div>
+
+<dialog class="help" id="help" aria-labelledby="helpTitle">
+  <div class="help-inner">
+    <div class="help-head">
+      <h2 id="helpTitle">Cách dùng</h2>
+      <span class="pill pill-trial">Bản thử nghiệm</span>
+    </div>
+    <ol class="steps">
+      <li><span class="step-num" style="background:#0F6E8C">1</span>
+        <div><b>Người ký: bật camera.</b><br><span class="step-desc">Bấm "Bật camera và tải mô hình". Đặt tay xuống thấp (vị trí nghỉ), nâng tay để ký, rồi hạ tay xuống hẳn để nhận kết quả.</span></div></li>
+      <li><span class="step-num" style="background:#B45309">2</span>
+        <div><b>Người nghe: gõ hoặc chọn từ.</b><br><span class="step-desc">Gõ từ hoặc câu ngắn, hoặc bấm một từ gợi ý, rồi bấm "Ký" để avatar ký.</span></div></li>
+      <li><span class="step-num" style="background:#12202B">3</span>
+        <div><b>Xem lại trong Hội thoại.</b><br><span class="step-desc">Mỗi lượt hai bên được ghi lại. Từ nhận chắc chắn có nút "Cho avatar ký lại".</span></div></li>
+    </ol>
+    <div>
+      <b id="wordsTitle">19 từ nhận diện được</b>
+      <ul class="words" aria-labelledby="wordsTitle" style="margin-top:8px">
+        <li>Tôi</li><li>Anh</li><li>Em</li><li>Cháu</li><li>Có</li><li>Cần</li><li>Ăn</li><li>Nói</li><li>Mưa</li><li>Sách</li>
+        <li>Đau</li><li>Đi</li><li>Khỏe</li><li>Uống</li><li>Nhà</li><li>Thích</li><li>Cảm ơn</li><li>Bây giờ</li><li>Xin lỗi</li>
+      </ul>
+      <p class="hint" style="margin-top:8px">Avatar chưa có ký hiệu cho "Khỏe" và "Uống", và "Xin lỗi" mới ký được một phần.</p>
+    </div>
+    <div class="know">
+      <h3>Điều cần biết</h3>
+      <ul>
+        <li>Chiều ký hiệu → văn bản chưa được người hiểu VSL xác nhận.</li>
+        <li>Mô hình chỉ biết 19 từ ở trên và không từ chối được cử chỉ lạ, nên có thể nhận nhầm khi ký từ khác.</li>
+        <li>Hình ảnh từ camera được xử lý ngay trong trình duyệt, không gửi đi đâu.</li>
+      </ul>
+    </div>
+    <form method="dialog" class="right">
+      <button type="submit" class="btn btn-primary" id="helpOk">Đã hiểu</button>
+    </form>
+  </div>
+</dialog>
+
+<aside class="drawer" id="drawer" aria-labelledby="drawerTitle" inert>
+  <div class="drawer-head">
+    <h2 id="drawerTitle">Nâng cao</h2>
+    <button type="button" class="btn" id="drawerClose">Đóng</button>
+  </div>
+  <section>
+    <h3 class="h-signer">Nhận diện ký hiệu</h3>
+    <div class="ctl">
+      <label for="advConf">Ngưỡng tự tin tối thiểu: <b id="advConfV">0.70</b></label>
+      <input id="advConf" type="range" min="0.3" max="0.99" step="0.01" value="0.7">
+    </div>
+    <div class="ctl">
+      <label for="advMargin">Chênh lệch tối thiểu với từ thứ hai: <b id="advMarginV">0.30</b></label>
+      <input id="advMargin" type="range" min="0" max="0.9" step="0.01" value="0.3">
+    </div>
+    <div class="ctl">
+      <label for="advPose">Mô hình Pose</label>
+      <select id="advPose">
+        <option value="full">full (gần dữ liệu huấn luyện hơn)</option>
+        <option value="lite">lite (nhanh hơn)</option>
+      </select>
+    </div>
+  </section>
+  <section>
+    <h3 class="h-signer">Hiệu năng</h3>
+    <dl>
+      <dt>Số khung hình mỗi giây</dt><dd id="perfFps">—</dd>
+      <dt>Xử lý mỗi khung (ms)</dt><dd id="perfLat">—</dd>
+      <dt>Nguồn MediaPipe</dt><dd id="perfSrc">—</dd>
+    </dl>
+  </section>
+  <section>
+    <h3 class="h-listener">Avatar</h3>
+    <dl>
+      <dt>Chuyển SiGML (XSLT)</dt><dd id="perfXslt">—</dd>
+      <dt>Nạp avatar</dt><dd id="perfLoad">—</dd>
+    </dl>
+    <label class="check"><input type="checkbox" id="advQuestion"> Bật luật câu hỏi</label>
+    <details>
+      <summary>Gloss, từ thiếu ký hiệu và SiGML lần gần nhất</summary>
+      <dl style="margin-top:6px">
+        <dt>Gloss theo luật</dt><dd id="advGloss">—</dd>
+        <dt>Không có ký hiệu</dt><dd id="advMissing">—</dd>
+      </dl>
+      <pre id="advSigml"></pre>
+    </details>
+  </section>
+  <section>
+    <p class="note">Thanh trượt và mô hình Pose điều khiển trực tiếp trang nhận diện. Số đo đọc từ trang nhận diện và trang avatar.</p>
+    <div class="row"><button type="button" class="btn btn-primary" id="advReset">Khôi phục mặc định</button></div>
+  </section>
+</aside>
+
+<script src="v2.js"></script>
+</body>
+</html>
