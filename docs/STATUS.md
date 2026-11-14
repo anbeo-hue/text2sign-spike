@@ -1,5 +1,45 @@
 # Trạng thái dự án (cập nhật 2026-11-14)
 
+## Trang ký hiệu → văn bản (`unified/s2t/`) chạy ngoại tuyến (2026-11-14)
+
+`unified/s2t/` là bản sao bị `.gitignore` (bản gốc `C:\vsl-kaggle-sample\demo` không sửa). MediaPipe đã tải sẵn vào
+`unified/s2t/vendor/mediapipe/` (không commit; `git check-ignore` → `.gitignore:15:unified/s2t/`). Danh sách file, nguồn,
+sha256: `unified/s2t/vendor/mediapipe/MANIFEST.txt`. Tổng 58 657 107 byte (~56 MB; ba file `.wasm` ~33 MB, ba `.task` ~23 MB).
+
+| Thành phần | Nguồn | Giấy phép | Đã xác minh? |
+|---|---|---|---|
+| `vision_bundle.mjs` + `wasm/` (6 file) | `npm pack @mediapipe/tasks-vision@0.10.35`; sha512 tarball khớp `dist.integrity` npm | Apache-2.0 | Một phần: chỉ trường `license` trong `package.json` của gói; gói KHÔNG kèm file LICENSE. Văn bản Apache-2.0 lấy từ repo google-ai-edge/mediapipe |
+| `hand_landmarker.task` | storage.googleapis.com, `float16/latest` (Last-Modified 26/04/2023) | Apache License 2.0 | Có: mục "LICENSED UNDER" trang 2 model card "MediaPipe Hands (Lite/Full)" (Oct 2021) do trang tài liệu Hand Landmarker liên kết |
+| `pose_landmarker_full.task`, `pose_landmarker_lite.task` | như trên (27–28/04/2023) | Apache License 2.0 | Có: mục "LICENSED UNDER" trang 2 model card "BlazePose GHUM 3D" (16/04/2021) do trang tài liệu Pose Landmarker liên kết |
+
+Lưu ý: model card có từ 2021, còn file `.task` sửa đổi vào 04/2023. Bản thân file `.task` không kèm giấy phép. URL `latest` không ghim
+phiên bản; sha256 ghi lại là của bản đã tải. Bản sao giấy phép và model card nằm ở `vendor/mediapipe/licenses/`.
+
+**`app.js`:** nạp từ máy trước (bundle, wasm qua HEAD 4 file, từng `.task`); file nào lỗi thì dùng URL mạng cũ cho file đó.
+Nếu mọi cách đều hỏng khi wasm đang lấy từ máy, thử lại một lần với wasm từ mạng. Dòng trạng thái ghi `sẵn sàng · nguồn: cục bộ`, `… mạng`, hoặc
+`… cục bộ + mạng (mạng: …)`. Hàm `loop`/nhận diện giữ nguyên (so md5 với bản trước).
+`python -m http.server` (Python 3.11.9, máy này) trả `.mjs`/`.js` → `application/javascript`, `.wasm` → `application/wasm`: đúng.
+
+**Kiểm qua CDP** (Chrome 157, camera giả, một cờ `--disable-features`, profile mới mỗi lượt; thời gian "sẵn sàng" tính từ lúc bấm nút,
+đọc mỗi ~1 s nên sai số ~1 s; camera giả không có người → KHÔNG đo độ chính xác):
+
+| Trường hợp | Lượt | Sẵn sàng (s) | Trạng thái | Request ra ngoài máy | FPS trung vị (min–max) | Xử lý/khung trung vị (ms) |
+|---|---|---|---|---|---|---|
+| (a) mạng thường, đủ file trên máy | 3 | 5,75 / 5,56 / 5,62 | `nguồn: cục bộ` | 0 | 42 / 37 / 41 (33–43) | 23 / 27 / 24 |
+| (b) chặn DNS cả cdn.jsdelivr.net và storage.googleapis.com | 3 | 5,60 / 5,66 / 5,61 | `nguồn: cục bộ` | 0, không lỗi mạng | 36 / 35 / 36 (4*–43) | 27 / 27 / 27 |
+| Đối chứng: tạm bỏ cả thư mục `vendor/mediapipe` (chỉ mạng) | 3 | 7,68 / 7,96 / 8,09 | `nguồn: mạng` | jsDelivr 8, GCS 2 | 39 / 42 / 42 (34–43) | 25 / 23 / 23 |
+| (c1) tạm bỏ `pose_landmarker_full.task` | 1 | 6,72 | `cục bộ + mạng (mạng: pose)` | GCS 1 | 41 (31–43) | 23 |
+| (c2) tạm bỏ `vision_bundle.mjs` | 1 | 5,86 | `cục bộ + mạng (mạng: thư viện)` | jsDelivr 1 | 38 (34–43) | 26 |
+
+- \*Lượt b1: mẫu đầu tiên ngay sau khi sẵn sàng là 4 FPS / 229 ms, 14 mẫu sau 31–43 FPS. Chưa rõ nguyên nhân, chỉ thấy 1 lần.
+- Ở mọi lượt, vòng nhận diện đều chạy: FPS cập nhật, `y cổ tay` = "mất người" vì hình giả không có người.
+- (c) sau khi chạy, file được trả về chỗ cũ; sha256 cả 14 file khớp MANIFEST.
+- Chế độ chỉ-mạng sinh 404 cho các file cục bộ trước khi chuyển sang mạng (cảnh báo console, không phải lỗi).
+- Dữ liệu thô: `evidence/unified/s2t_local_*.json`, `s2t_netonly_*.json` (bị `.gitignore`).
+
+**Chưa kiểm chứng:** camera thật, nhận diện thật; Edge; bấm tay; mạng thật/không có mạng thật ở nơi demo (mới giả lập DNS);
+server trên máy khác (Content-Type phụ thuộc phiên bản Python/registry Windows: kiểm lại bằng `curl -I …/vision_bundle.mjs` và `…/wasm/vision_wasm_internal.wasm`).
+
 ## Nhận xét của người hiểu VSL về chiều văn bản → ký hiệu (2026-11-13)
 
 - Một người hiểu VSL đã xem chiều văn bản → ký hiệu (gói từ điển cục bộ) và nhận xét là **chấp nhận được**.
