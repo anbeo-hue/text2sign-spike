@@ -35,8 +35,10 @@
         <span class="role role-signer">Người ký</span>
         <h2 id="s2tTitle">Ký hiệu → Văn bản</h2>
       </div>
-      <div class="stage stage-camera">
-        <iframe id="fS2T" src="../s2t/index.html" title="Camera và nhận diện ký hiệu" allow="camera; autoplay"></iframe>
+      <div class="stage-box">
+        <div class="stage stage-camera">
+          <iframe id="fS2T" src="../s2t/index.html" title="Camera và nhận diện ký hiệu" allow="camera; autoplay"></iframe>
+        </div>
       </div>
       <div class="row">
         <button type="button" class="btn btn-primary" id="camBtn" disabled>Bật camera và tải mô hình</button>
@@ -59,8 +61,10 @@
         <span class="role role-listener">Người nghe</span>
         <h2 id="t2sTitle">Văn bản → Ký hiệu</h2>
       </div>
-      <div class="stage stage-avatar">
-        <iframe id="fT2S" src="../../demo.html" title="Avatar ký hiệu CWASA"></iframe>
+      <div class="stage-box">
+        <div class="stage stage-avatar">
+          <iframe id="fT2S" src="../../demo.html" title="Avatar ký hiệu CWASA"></iframe>
+        </div>
       </div>
       <div class="field">
         <label for="sayText">Câu cần ký</label>
@@ -79,25 +83,26 @@
         <button type="button" class="btn btn-chip" data-word="bây giờ">Bây giờ</button>
       </div>
     </section>
-  </div>
 
-  <section class="card" aria-labelledby="convTitle">
-    <div class="conv-head">
-      <h2 id="convTitle" style="margin:0;font-size:18px;font-weight:600">Hội thoại</h2>
-      <div class="row">
-        <button type="button" class="btn" id="exportBtn">Xuất file .txt</button>
-        <button type="button" class="btn" id="clearBtn" aria-controls="clearConfirm" aria-expanded="false">Xóa lịch sử</button>
+    <!-- Conversation: third column at >= 1280px (list scrolls inside), stacked below otherwise. -->
+    <section class="card conv" aria-labelledby="convTitle">
+      <div class="conv-head">
+        <h2 id="convTitle">Hội thoại</h2>
+        <div class="row">
+          <button type="button" class="btn" id="exportBtn">Xuất file .txt</button>
+          <button type="button" class="btn" id="clearBtn" aria-controls="clearConfirm" aria-expanded="false">Xóa lịch sử</button>
+        </div>
       </div>
-    </div>
-    <div class="confirm" id="clearConfirm" role="group" aria-labelledby="clearQ" hidden>
-      <span id="clearQ">Xóa toàn bộ lịch sử hội thoại trên máy này? Không hoàn tác được.</span>
-      <button type="button" class="btn btn-danger" id="clearYes">Xóa</button>
-      <button type="button" class="btn" id="clearNo">Hủy</button>
-    </div>
-    <p class="conv-empty" id="convEmpty">Chưa có lượt nào. Hãy ký hoặc gõ một từ.</p>
-    <ol class="conv-list" id="convList" aria-live="polite"></ol>
-    <p class="foot">Lịch sử chỉ lưu chữ, giờ và mức tin cậy trên máy này, trong trình duyệt. Không lưu video, ảnh hay điểm mốc bàn tay, và không gửi đi đâu.</p>
-  </section>
+      <div class="confirm" id="clearConfirm" role="group" aria-labelledby="clearQ" hidden>
+        <span id="clearQ">Xóa toàn bộ lịch sử hội thoại trên máy này? Không hoàn tác được.</span>
+        <button type="button" class="btn btn-danger" id="clearYes">Xóa</button>
+        <button type="button" class="btn" id="clearNo">Hủy</button>
+      </div>
+      <p class="conv-empty" id="convEmpty">Chưa có lượt nào. Hãy ký hoặc gõ một từ.</p>
+      <ol class="conv-list" id="convList" aria-live="polite"></ol>
+      <p class="foot">Lịch sử chỉ lưu chữ, giờ và mức tin cậy trên máy này, trong trình duyệt. Không lưu video, ảnh hay điểm mốc bàn tay, và không gửi đi đâu.</p>
+    </section>
+  </div>
 
 </div>
 
@@ -159,6 +164,17 @@
         <option value="lite">lite (nhanh hơn)</option>
       </select>
     </div>
+  </section>
+  <section aria-labelledby="cntTitle">
+    <h3 class="h-signer" id="cntTitle">Bộ đếm phiên (ký hiệu → văn bản)</h3>
+    <p class="cnt-sum" id="cntSum" aria-live="polite">Phiên này: được nhận 0 · chưa chắc 0</p>
+    <table class="cnt" id="cntTable" hidden>
+      <thead><tr><th scope="col">Từ</th><th scope="col">Được nhận</th><th scope="col">Chưa chắc (mô hình đoán)</th></tr></thead>
+      <tbody id="cntBody"></tbody>
+    </table>
+    <p class="note">Số này không cho biết từ nào ký đúng; người thử tự đối chiếu với từ mình định ký.</p>
+    <p class="note">Chỉ giữ trong phiên này (mất khi tải lại trang), không lưu vào máy.</p>
+    <div class="row"><button type="button" class="btn" id="cntReset">Đặt lại bộ đếm</button></div>
   </section>
   <section>
     <h3 class="h-signer">Hiệu năng</h3>

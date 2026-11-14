@@ -22,11 +22,15 @@
     del(k) { try { localStorage.removeItem(k); } catch { /* ignore */ } },
   };
 
-  // A stored turn has ONLY: side, text, status, at (+ conf for signer turns).
+  // A stored turn has ONLY: side, text, status, at, count (+ lastAt when count > 1, + conf for signer turns).
+  // Consecutive identical turns are merged into one stored turn with count = N (at = first, lastAt = last).
+  // Older history without count is read as count = 1.
   function cleanTurn(t) {
     if (!t || (t.side !== 'signer' && t.side !== 'listener')) return null;
     if (typeof t.text !== 'string' || !t.text || typeof t.at !== 'number') return null;
-    const out = { side: t.side, text: t.text, status: t.side === 'signer' ? 'confident' : 'signed', at: t.at };
+    const count = Number.isInteger(t.count) && t.count > 1 ? t.count : 1;
+    const out = { side: t.side, text: t.text, status: t.side === 'signer' ? 'confident' : 'signed', at: t.at, count };
+    if (count > 1) out.lastAt = typeof t.lastAt === 'number' && t.lastAt >= t.at ? t.lastAt : t.at;
     if (t.side === 'signer') out.conf = typeof t.conf === 'number' ? t.conf : null;
     return out;
   }
@@ -43,16 +47,43 @@
   function addTurn(side, text, conf) {
     const t = cleanTurn({ side, text, conf: conf == null ? null : Math.round(conf * 100) / 100, at: Date.now() });
     if (!t) return;
-    history.push(t);
-    if (history.length > MAX_TURNS) history = history.slice(-MAX_TURNS);
+    const last = history[history.length - 1];
+    const lastEnd = last ? (last.lastAt || last.at) : 0;
+    // Merge only if nothing else (not even an unsure turn shown this session) came in between.
+    if (last && last.side === t.side && last.text === t.text && !sessionUnsure.some((u) => u.at > lastEnd)) {
+      last.count = (last.count || 1) + 1;
+      last.lastAt = t.at;
+      if (t.side === 'signer') last.conf = t.conf; // conf of the most recent recognition
+    } else {
+      history.push(t);
+      if (history.length > MAX_TURNS) history = history.slice(-MAX_TURNS);
+    }
     saveHistory();
     renderConversation();
+  }
+
+  // Group consecutive turns with the same side, text and unsure flag (also covers older unmerged history).
+  function groupTurns(turns) {
+    const out = [];
+    for (const t of turns) {
+      const g = out[out.length - 1];
+      const end = t.lastAt || t.at;
+      if (g && g.side === t.side && g.text === t.text && g.unsure === !!t.unsure) {
+        g.count += t.count || 1;
+        g.lastAt = Math.max(g.lastAt, end);
+      } else {
+        out.push({ side: t.side, text: t.text, unsure: !!t.unsure, at: t.at, lastAt: end, count: t.count || 1 });
+      }
+    }
+    return out;
   }
 
   // ---------------------------------------------------------------- conversation
   const pad2 = (n) => String(n).padStart(2, '0');
   const hhmm = (ms) => { const d = new Date(ms); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
   const sideName = (side) => (side === 'signer' ? 'Người ký' : 'Người nghe');
+  const exportLines = () => groupTurns(history)
+    .map((g) => `${hhmm(g.at)}  ${sideName(g.side)}: ${g.text}${g.count > 1 ? ` (×${g.count})` : ''}`);
 
   function el(tag, cls, text) {
     const e = document.createElement(tag);
@@ -63,8 +94,8 @@
 
   function renderConversation() {
     const list = $('convList');
-    const turns = history.map((t) => ({ ...t })).concat(sessionUnsure.map((t) => ({ ...t, unsure: true })))
-      .sort((a, b) => a.at - b.at);
+    const turns = groupTurns(history.map((t) => ({ ...t })).concat(sessionUnsure.map((t) => ({ ...t, unsure: true })))
+      .sort((a, b) => a.at - b.at));
     list.replaceChildren();
     $('convEmpty').hidden = turns.length > 0;
     for (const t of turns) {
@@ -74,9 +105,23 @@
       meta.append(el('span', 'who', sideName(t.side)));
       const time = el('time', null, hhmm(t.at));
       time.dateTime = new Date(t.at).toISOString();
-      meta.append(time);
+      if (t.count > 1 && hhmm(t.lastAt) !== hhmm(t.at)) {
+        const t2 = el('time', null, hhmm(t.lastAt));
+        t2.dateTime = new Date(t.lastAt).toISOString();
+        const range = el('span');
+        range.append(time, '–', t2); // first and last turn, only when the minutes differ
+        meta.append(range);
+      } else {
+        meta.append(time);
+      }
       const body = el('div', 'bubble-body');
-      body.append(el('span', 'bubble-word', t.text));
+      const word = el('span', 'bubble-word', t.text);
+      if (t.count > 1) {
+        const n = el('span', 'times', `×${t.count}`);
+        n.setAttribute('aria-label', `${t.count} lần liên tiếp`);
+        word.append(n);
+      }
+      body.append(word);
       if (t.unsure) body.append(el('span', 'pill pill-unsure', 'chưa chắc — không ghi vào hội thoại'));
       else if (t.side === 'signer') body.append(el('span', 'pill pill-ok', 'chắc chắn'));
       else body.append(el('span', 'pill pill-signed', 'avatar đã ký'));
@@ -93,10 +138,11 @@
       li.append(b);
       list.append(li);
     }
+    list.scrollTop = list.scrollHeight; // newest turn visible when the list scrolls inside its column
   }
 
   $('exportBtn').addEventListener('click', () => {
-    const lines = history.map((t) => `${hhmm(t.at)}  ${sideName(t.side)}: ${t.text}`);
+    const lines = exportLines();
     const blob = new Blob([lines.join('\r\n') + (lines.length ? '\r\n' : '')], { type: 'text/plain;charset=utf-8' });
     const d = new Date();
     const a = document.createElement('a');
@@ -115,6 +161,31 @@
   }
   $('clearBtn').addEventListener('click', () => setConfirm($('clearConfirm').hidden));
   $('clearNo').addEventListener('click', () => { setConfirm(false); $('clearBtn').focus(); });
+  // ---------------------------------------------------------------- session counter (memory only, never stored)
+  const counter = { ok: 0, unsure: 0, words: new Map() };
+  function countRecognition(word, unsure) {
+    if (unsure) counter.unsure++; else counter.ok++;
+    const w = counter.words.get(word) || { ok: 0, unsure: 0 };
+    if (unsure) w.unsure++; else w.ok++;
+    counter.words.set(word, w);
+    renderCounter();
+  }
+  function renderCounter() {
+    $('cntSum').textContent = `Phiên này: được nhận ${counter.ok} · chưa chắc ${counter.unsure}`;
+    const rows = [...counter.words.entries()]
+      .sort((a, b) => (b[1].ok + b[1].unsure) - (a[1].ok + a[1].unsure) || a[0].localeCompare(b[0], 'vi'));
+    $('cntBody').replaceChildren(...rows.map(([word, c]) => {
+      const tr = el('tr');
+      tr.append(el('td', null, word), el('td', null, String(c.ok)), el('td', null, String(c.unsure)));
+      return tr;
+    }));
+    $('cntTable').hidden = rows.length === 0;
+  }
+  $('cntReset').addEventListener('click', () => {
+    counter.ok = 0; counter.unsure = 0; counter.words.clear();
+    renderCounter();
+  });
+
   $('clearYes').addEventListener('click', () => {
     history = [];
     sessionUnsure.length = 0;
@@ -192,10 +263,12 @@
     if (!w.classList.contains('unsure')) {
       const m = detail.match(/^độ tự tin (\d+)%/);
       addTurn('signer', text, m ? Number(m[1]) / 100 : null);
+      countRecognition(text, false);
       showLast(text, 'chắc chắn · đã thêm vào hội thoại', 'pill-ok', false);
     } else {
       const m = detail.match(/gần nhất:\s*(.+?), độ tự tin/);
       const guess = m ? m[1] : 'chưa chắc';
+      countRecognition(m ? m[1] : '(không rõ)', true);
       sessionUnsure.push({ side: 'signer', text: guess, at: Date.now() });
       renderConversation();
       showLast(guess, 'chưa chắc', 'pill-unsure', true);
@@ -386,6 +459,7 @@
   window.V2 = {
     history: () => history.map((t) => ({ ...t })),
     sessionUnsure: () => sessionUnsure.map((t) => ({ ...t })),
-    exportText: () => history.map((t) => `${hhmm(t.at)}  ${sideName(t.side)}: ${t.text}`).join('\r\n'),
+    exportText: () => exportLines().join('\r\n'),
+    counter: () => ({ ok: counter.ok, unsure: counter.unsure, words: Object.fromEntries(counter.words) }),
   };
 })();

@@ -1,5 +1,44 @@
 # Trạng thái dự án (cập nhật 2026-11-14)
 
+## v2: bố cục một màn hình, gộp lượt trùng, bộ đếm phiên, giấy phép (2026-11-14, lượt 2)
+
+- **Bố cục:**
+  - Từ 1280px trở lên: 3 cột "Người ký | Người nghe | Hội thoại" trong một màn hình. Danh sách lượt cuộn bên trong cột và
+    tự cuộn tới lượt mới. Nút Xuất, nút Xóa và dòng quyền riêng tư luôn hiện. Header và dải giới hạn được thu gọn, nội dung
+    chữ giữ nguyên.
+  - Khung camera và avatar giữ tỉ lệ 4:3, theo cạnh nhỏ hơn (đơn vị container `cqw`/`cqh`). CWASA tự lấy kích thước canvas
+    từ phần tử cha, nên không cần sửa `jas/`.
+  - Dưới 1280px vẫn xếp chồng như cũ.
+- **Gộp lượt:**
+  - Các lượt liên tiếp cùng bên, cùng chữ hiện thành một bong bóng "×N". Bong bóng ghi giờ đầu–cuối nếu khác phút.
+  - Lưu: thêm trường `count`, và `lastAt` khi `count` > 1 để hiện giờ lượt cuối. `conf` là của lần nhận gần nhất.
+  - Lịch sử cũ không có `count` được đọc là 1. Nếu lịch sử cũ có các lượt trùng liên tiếp, lúc hiển thị chúng vẫn được gộp.
+  - Lượt "chưa chắc" xen giữa làm ngắt chuỗi gộp.
+  - Xuất file: `HH:mm  Người ký: Cháu (×7)`.
+- **Bộ đếm phiên:** nằm trong ngăn Nâng cao, chỉ giữ trong bộ nhớ, có nút "Đặt lại bộ đếm".
+- **Giấy phép:**
+  - `THIRD_PARTY_NOTICES.md` mới ghi trạng thái xác minh của từng thành phần và các câu hỏi giấy phép còn mở.
+  - Văn bản giấy phép libxml2 2.15.0 và libxslt 1.1.44 (đúng commit submodule của polyfill 1.0.33) được chép nguyên văn
+    vào `vendor/xslt-polyfill/` (không commit).
+- **Kiểm qua CDP** (Chrome 157, camera giả, một cờ `--disable-features`, profile mới):
+
+  | Cấu hình | Số bước đạt | Cuộn dọc trang |
+  |---|---|---|
+  | 1860×955 | 22/22 | Không |
+  | 1366×768 | 22/22 | Không; 12 lượt thì cột Hội thoại thấy 3 lượt |
+  | 1860×955, XSLT tắt | 22/22 | Không |
+  | 1366×768, XSLT tắt + chặn jsDelivr/GCS | 22/22 | Không |
+  | 390×844 | 21/22 | Có, do xếp chồng theo thiết kế; không cuộn ngang |
+
+  - Avatar ký được Nhà, Mưa, Có, Bây giờ: `hns_sign` gửi đi = chỉ số `s` avatar phát.
+  - Không có lỗi mạng hay request ra ngoài máy. Console chỉ còn các thông báo như lượt trước.
+  - Dữ liệu thô: `evidence/unified/cdp_v3.mjs`, `v3_*.json`, `shots3/`.
+- **Chưa kiểm chứng:**
+  - camera thật, bấm tay, Edge;
+  - mạng thật ở nơi demo;
+  - chia sẻ màn hình qua Meet;
+  - thay đổi cỡ cửa sổ khi đang chạy (chỉ đo ở cỡ cố định từ lúc tải trang).
+
 ## Giao diện thống nhất v2 (`unified/v2/`, nhánh `ui-unified`, 2026-11-14)
 
 - Trang mới `unified/v2/index.html` + `v2.css` + `v2.js`; `unified/index.html` giữ nguyên làm dự phòng. Không tải font/thư viện từ mạng.
