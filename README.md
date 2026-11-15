@@ -3,6 +3,22 @@
 Dự án thử độc lập: **văn bản tiếng Việt → gloss → SiGML → avatar CWASA**, chạy trong trình duyệt, ngoại tuyến.
 Đây là bản thử kỹ thuật; luật gloss và từ điển **chưa được người hiểu VSL xác nhận**.
 
+## Cấu trúc (dành cho người xem repo)
+
+| Thư mục | Nội dung |
+|---|---|
+| `unified/v2/` | Trang demo hợp nhất hai chiều: Người ký, Người nghe, Hội thoại; ghi bằng phím Space; ghép câu gợi ý (`sentence.js`) |
+| `unified/s2t/` | Ký hiệu → văn bản: MediaPipe Pose + Hand → 76 điểm/khung → cắt cử chỉ → mạng 3 lớp, 19 từ |
+| `src/`, `demo.html` | Văn bản → gloss (luật) → SiGML → avatar CWASA |
+| `tools/`, `test/` | Công cụ xử lý từ điển, đánh giá, test (`node --test`) |
+| `docs/` | Báo cáo tiến độ, đánh giá, ghi chú bàn giao |
+
+Không có trong repo (giấy phép bên thứ ba hoặc dữ liệu): CWASA (`jas/`), từ điển raianrido/VSL (GPL-3.0),
+trọng số mô hình nhận diện (`unified/s2t/model/`, huấn luyện trên bộ Kaggle `nguyenanfms/vsl-vietnamese-sign-language-v2`),
+bản sao MediaPipe (`unified/s2t/vendor/`), khóa API. Vì vậy clone về sẽ không chạy ngay được demo; xem mục dưới.
+
+Bước ghép câu bằng AI chỉ nối các từ đã nhận diện thành câu tiếng Việt gợi ý, không phải dịch theo ngữ pháp VSL.
+
 ## Chạy demo
 
 Yêu cầu: Python 3.11, Node 24 (chỉ cần cho test/công cụ). Không cài thư viện ngoài.

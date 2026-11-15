@@ -11,5 +11,6 @@ evidence/
 data/pack/
 __pycache__/
 
-# sign->text demo copy (model weights derived from a public dataset; local only)
-unified/s2t/
+# sign->text: code is committed; model weights (trained on a public Kaggle dataset) and MediaPipe copies stay local
+unified/s2t/model/
+unified/s2t/vendor/

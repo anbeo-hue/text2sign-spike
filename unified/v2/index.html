@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dịch ngôn ngữ ký hiệu Việt Nam (bản thử nghiệm)</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="v2.css">
+<link rel="stylesheet" href="v2.css?v=20261115d">
 </head>
 <body>
 <div class="wrap">
@@ -26,7 +26,7 @@
     </div>
   </header>
 
-  <p class="limits"><b>Giới hạn hiện tại.</b> Ký hiệu → văn bản: 19 từ, chưa được người hiểu VSL xác nhận. Văn bản → ký hiệu: gói từ điển cục bộ, một người hiểu VSL đã xem và nhận xét chấp nhận được; phạm vi từ và vùng chưa rõ.</p>
+  <p class="limits"><b>Giới hạn hiện tại.</b> Ký hiệu → văn bản: 19 từ, chưa được người hiểu VSL xác nhận. Văn bản → ký hiệu: gói từ điển cục bộ, một người hiểu VSL đã xem và nhận xét chấp nhận được; phạm vi từ và vùng chưa rõ. Ghép câu: gợi ý tiếng Việt từ các từ rời (AI nếu đã cấu hình), không phải ngữ pháp VSL.</p>
 
   <div class="panels">
     <!-- Signer: the existing recognition page (unified/s2t/) in a same-origin iframe; its own controls are hidden by injected CSS. -->
@@ -52,6 +52,25 @@
           <span class="pill" id="lastPill" hidden></span>
         </div>
         <p class="hint">Đặt tay xuống thấp (vị trí nghỉ), nâng tay ký, rồi hạ tay xuống hẳn để nhận kết quả.</p>
+      </div>
+      <!-- Sentence suggestion: joins the confidently recognised words (see sentence.js). -->
+      <div class="compose" role="group" aria-labelledby="seqLabel">
+        <div class="row">
+          <span class="label" id="seqLabel">Chuỗi từ đã nhận</span>
+          <span class="hint" id="seqEmpty">chưa có từ nào · nhấn Space để bắt đầu ghi</span>
+          <span class="seq" id="seqChips"></span>
+        </div>
+        <div class="row">
+          <button type="button" class="btn btn-compose btn-primary" id="capBtn" aria-pressed="false">Bắt đầu ghi (Space)</button>
+          <button type="button" class="btn btn-compose" id="composeBtn" disabled>Ghép thành câu</button>
+          <button type="button" class="btn btn-compose" id="seqClear" disabled>Xóa chuỗi</button>
+          <span class="status" id="composeStatus" role="status"></span>
+        </div>
+        <div class="sentence" id="sentenceBox" aria-live="polite" hidden>
+          <span class="sentence-text" id="sentenceText"></span>
+          <span class="pill" id="sentencePill"></span>
+          <span class="hint" id="sentenceNote"></span>
+        </div>
       </div>
     </section>
 
@@ -100,7 +119,7 @@
       </div>
       <p class="conv-empty" id="convEmpty">Chưa có lượt nào. Hãy ký hoặc gõ một từ.</p>
       <ol class="conv-list" id="convList" aria-live="polite"></ol>
-      <p class="foot">Lịch sử chỉ lưu chữ, giờ và mức tin cậy trên máy này, trong trình duyệt. Không lưu video, ảnh hay điểm mốc bàn tay, và không gửi đi đâu.</p>
+      <p class="foot">Lịch sử chỉ lưu chữ, giờ và mức tin cậy trên máy này, trong trình duyệt. Không lưu video, ảnh hay điểm mốc bàn tay. Chỉ khi bấm "Ghép thành câu" và đã cấu hình AI, chuỗi từ (chỉ chữ) mới được gửi tới dịch vụ AI đó.</p>
     </section>
   </div>
 
@@ -114,7 +133,7 @@
     </div>
     <ol class="steps">
       <li><span class="step-num" style="background:#0F6E8C">1</span>
-        <div><b>Người ký: bật camera.</b><br><span class="step-desc">Bấm "Bật camera và tải mô hình". Đặt tay xuống thấp (vị trí nghỉ), nâng tay để ký, rồi hạ tay xuống hẳn để nhận kết quả.</span></div></li>
+        <div><b>Người ký: bật camera.</b><br><span class="step-desc">Bấm "Bật camera và tải mô hình". Nhấn phím Space để bắt đầu ghi, hạ tay, rồi ký từng từ (nâng tay ký, hạ tay xuống hẳn). Nhấn Space lần nữa để dừng: chỉ các từ ký trong khoảng đó được ghi và ghép thành câu. Cử chỉ ngoài khoảng ghi bị bỏ qua.</span></div></li>
       <li><span class="step-num" style="background:#B45309">2</span>
         <div><b>Người nghe: gõ hoặc chọn từ.</b><br><span class="step-desc">Gõ từ hoặc câu ngắn, hoặc bấm một từ gợi ý, rồi bấm "Ký" để avatar ký.</span></div></li>
       <li><span class="step-num" style="background:#12202B">3</span>
@@ -134,6 +153,7 @@
         <li>Chiều ký hiệu → văn bản chưa được người hiểu VSL xác nhận.</li>
         <li>Mô hình chỉ biết 19 từ ở trên và không từ chối được cử chỉ lạ, nên có thể nhận nhầm khi ký từ khác.</li>
         <li>Hình ảnh từ camera được xử lý ngay trong trình duyệt, không gửi đi đâu.</li>
+        <li>"Ghép thành câu" chỉ nối các từ rời thành câu tiếng Việt gợi ý (bằng AI nếu đã cấu hình trong Nâng cao). Đây không phải bản dịch theo ngữ pháp VSL; chuỗi từ gốc luôn được hiện kèm.</li>
       </ul>
     </div>
     <form method="dialog" class="right">
@@ -176,6 +196,27 @@
     <p class="note">Chỉ giữ trong phiên này (mất khi tải lại trang), không lưu vào máy.</p>
     <div class="row"><button type="button" class="btn" id="cntReset">Đặt lại bộ đếm</button></div>
   </section>
+  <section aria-labelledby="aiTitle">
+    <h3 class="h-signer" id="aiTitle">Ghép câu bằng AI (tùy chọn)</h3>
+    <p class="note" id="aiState" aria-live="polite">Chưa cấu hình: nút "Ghép thành câu" chỉ nối các từ rời.</p>
+    <div class="ctl">
+      <label for="aiEndpoint">Địa chỉ API (kiểu OpenAI chat completions)</label>
+      <input id="aiEndpoint" type="url" autocomplete="off" spellcheck="false" placeholder="https://api.openai.com/v1/chat/completions">
+    </div>
+    <div class="ctl">
+      <label for="aiModel">Tên mô hình</label>
+      <input id="aiModel" type="text" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="ctl">
+      <label for="aiKey">Khóa API</label>
+      <input id="aiKey" type="password" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="row">
+      <button type="button" class="btn btn-primary" id="aiSave">Lưu</button>
+      <button type="button" class="btn" id="aiForget">Xóa cấu hình</button>
+    </div>
+    <p class="note">Khóa chỉ lưu trong trình duyệt của máy này, không nằm trong mã nguồn. Khi ghép câu, chỉ chuỗi từ (chữ) được gửi tới địa chỉ trên; nếu lỗi hoặc quá 12 giây, trang hiện chuỗi từ gốc.</p>
+  </section>
   <section>
     <h3 class="h-signer">Hiệu năng</h3>
     <dl>
@@ -206,6 +247,7 @@
   </section>
 </aside>
 
-<script src="v2.js"></script>
+<script src="sentence.js?v=20261115d"></script>
+<script src="v2.js?v=20261115d"></script>
 </body>
 </html>

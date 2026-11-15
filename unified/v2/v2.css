@@ -116,6 +116,18 @@ button:disabled { cursor: default; opacity: .55; }
 .result-word.unsure { color: var(--muted); }
 .hint { color: var(--muted); font-size: 13.5px; margin: 0; }
 
+/* Sentence suggestion (signer card) */
+.compose { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+.compose .label { color: var(--muted); font-size: 13px; }
+.seq { display: flex; flex-wrap: wrap; gap: 6px; }
+.seq-word { min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--accent); background: var(--signer-bg); color: var(--accent-ink); font-weight: 600; }
+.seq-word:hover { text-decoration: line-through; }
+.btn-compose { min-height: 38px; padding: 0 14px; }
+.btn.recording { background: #9B1C1C; border-color: #9B1C1C; color: #FFFFFF; }
+.sentence { display: flex; align-items: baseline; gap: 6px 10px; flex-wrap: wrap; }
+.sentence[hidden] { display: none; }
+.sentence-text { font-size: 20px; font-weight: 700; }
+
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label { font-size: 14px; font-weight: 500; }
 .field textarea {
@@ -192,6 +204,7 @@ dialog.help::backdrop { background: rgba(18, 32, 43, .45); }
 .drawer .ctl label { font-size: 14px; }
 .drawer input[type=range] { width: 100%; min-height: 44px; accent-color: var(--accent); }
 .drawer select { font-size: 15px; padding: 8px 10px; border: 1px solid var(--field); border-radius: 8px; background: #FFFFFF; min-height: 44px; }
+.drawer input[type=url], .drawer input[type=text], .drawer input[type=password] { font-size: 15px; padding: 8px 10px; border: 1px solid var(--field); border-radius: 8px; background: #FFFFFF; min-height: 44px; width: 100%; }
 .check { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; }
 .check input { width: 20px; height: 20px; accent-color: var(--accent); }
 .drawer dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; font-size: 14px; }
@@ -228,6 +241,8 @@ dialog.help::backdrop { background: rgba(18, 32, 43, .45); }
   .stage-box { flex: 1 1 0; min-height: 120px; container-type: size; display: flex; justify-content: center; align-items: flex-start; }
   .stage-box > .stage { width: min(100cqw, 100cqh * 4 / 3); height: auto; flex: none; }
   .result { padding: 10px 14px; gap: 2px; }
+  .compose { padding: 8px 12px; gap: 6px; }
+  .result .hint { display: none; } /* same text is in Hướng dẫn; makes room for the sentence block */
   .result-word { font-size: 32px; }
   .field textarea { min-height: 48px; padding: 8px 12px; }
   .conv-list { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; gap: 10px; }

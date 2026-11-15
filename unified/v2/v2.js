@@ -260,10 +260,17 @@
     const text = (w.textContent || '').trim();
     if (!text || text === '—') return;
     const detail = (sDoc.getElementById('detail').textContent || '').trim();
+    if (!inCapture(detail)) {
+      // Outside the Space-to-Space window (reaching for the mouse/keyboard, walking in...): not recorded anywhere.
+      const g = detail.match(/gần nhất:\s*(.+?), độ tự tin/);
+      showLast(w.classList.contains('unsure') ? (g ? g[1] : 'chưa chắc') : text, 'bỏ qua · ngoài lúc ghi', 'pill-unsure', true);
+      return;
+    }
     if (!w.classList.contains('unsure')) {
       const m = detail.match(/^độ tự tin (\d+)%/);
       addTurn('signer', text, m ? Number(m[1]) / 100 : null);
       countRecognition(text, false);
+      seqPush(text);
       showLast(text, 'chắc chắn · đã thêm vào hội thoại', 'pill-ok', false);
     } else {
       const m = detail.match(/gần nhất:\s*(.+?), độ tự tin/);
@@ -368,6 +375,144 @@
   });
   document.querySelectorAll('[data-word]').forEach((b) => b.addEventListener('click', () => signText(b.dataset.word)));
 
+  // ---------------------------------------------------------------- capture window (Space to start, Space to stop)
+  // Only gestures that start after "start" and end before "stop" are recorded (conversation, counter, sequence).
+  // The recogniser reports a word about END_HOLD_MS after the hands went down, with the gesture length in its
+  // detail line ("... 1.2 s"), so the gesture's own start/end are estimated from the time the result arrives.
+  const END_HOLD_MS = 600, CAP_SLACK_MS = 200, LAST_WORD_WAIT_MS = 900;
+  let capturing = false, capStart = 0, capStop = 0, capTimer = null;
+  function inCapture(detail) {
+    const m = (detail || '').match(/([\d.]+) s$/);
+    const end = Date.now() - END_HOLD_MS;
+    const start = end - (m ? Number(m[1]) * 1000 : 0);
+    if (start < capStart - CAP_SLACK_MS) return false;
+    return capturing || end <= capStop + CAP_SLACK_MS;
+  }
+  function renderCapture() {
+    const b = $('capBtn');
+    b.textContent = capturing ? 'Dừng ghi (Space)' : 'Bắt đầu ghi (Space)';
+    b.setAttribute('aria-pressed', String(capturing));
+    b.classList.toggle('recording', capturing);
+    $('seqEmpty').textContent = capturing ? 'đang ghi · hạ tay rồi ký từng từ' : 'chưa có từ nào · nhấn Space để bắt đầu ghi';
+  }
+  function toggleCapture() {
+    clearTimeout(capTimer);
+    if (!capturing) {
+      capturing = true; capStart = Date.now(); capStop = 0;
+      seq.length = 0; hideSentence(); renderSeq(); // a new sequence each time
+    } else {
+      capturing = false; capStop = Date.now();
+      // The last word arrives a moment after the hands go down: wait for it, then join automatically
+      // (no need to reach for the mouse, which would itself be read as a gesture).
+      $('composeStatus').textContent = 'Đang chờ từ cuối…';
+      capTimer = setTimeout(() => { $('composeStatus').textContent = ''; if (seq.length) composeSentence(); }, LAST_WORD_WAIT_MS);
+    }
+    renderCapture();
+  }
+  function onSpace(e) {
+    if (e.code !== 'Space' || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
+    const t = e.target, tag = t && t.tagName;
+    if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+    if ($('help').open || $('drawer').classList.contains('open')) return;
+    e.preventDefault(); // also keeps Space from pressing whichever button has focus
+    toggleCapture();
+  }
+  document.addEventListener('keydown', onSpace);
+  // Focus may sit inside one of the two frames (same origin): listen there too.
+  onFrameReady(fS, (win, doc) => doc.addEventListener('keydown', onSpace));
+  onFrameReady(fT, (win, doc) => doc.addEventListener('keydown', onSpace));
+  $('capBtn').addEventListener('click', toggleCapture);
+
+  // ---------------------------------------------------------------- sentence suggestion (sentence.js)
+  // seq = confidently recognised words of this session (memory only, never stored). Consecutive repeats
+  // count once. Clicking a word removes it (the tester's way to drop a wrong recognition).
+  // The AI settings (endpoint, model, key) live in localStorage on this machine only.
+  const AI_KEY = 'vsl_ai_cfg_v1';
+  const Sentence = window.VSLSentence;
+  const seq = [];
+  let composeRun = 0;
+  function loadAiCfg() {
+    try {
+      const c = JSON.parse(store.get(AI_KEY) || '{}') || {};
+      return { endpoint: String(c.endpoint || ''), model: String(c.model || ''), key: String(c.key || '') };
+    } catch { return { endpoint: '', model: '', key: '' }; }
+  }
+  let aiCfg = loadAiCfg();
+  const aiReady = () => !!(aiCfg.endpoint && aiCfg.model && aiCfg.key);
+
+  function hideSentence() { composeRun++; $('sentenceBox').hidden = true; $('composeStatus').textContent = ''; }
+  function renderSeq() {
+    $('seqEmpty').hidden = seq.length > 0;
+    $('seqChips').replaceChildren(...seq.map((w, i) => {
+      const b = el('button', 'seq-word', w);
+      b.type = 'button';
+      b.title = 'Bỏ từ này khỏi chuỗi';
+      b.setAttribute('aria-label', `Bỏ từ ${w} khỏi chuỗi`);
+      b.addEventListener('click', () => { seq.splice(i, 1); hideSentence(); renderSeq(); });
+      return b;
+    }));
+    $('composeBtn').disabled = seq.length === 0;
+    $('seqClear').disabled = seq.length === 0;
+  }
+  function seqPush(word) {
+    if (seq[seq.length - 1] === word) return;
+    seq.push(word);
+    if (seq.length > Sentence.MAX_WORDS) seq.shift();
+    hideSentence();
+    renderSeq();
+  }
+  async function composeSentence() {
+    if (!seq.length) return;
+    const words = seq.slice();
+    const run = ++composeRun;
+    $('composeBtn').disabled = true;
+    $('sentenceBox').hidden = true;
+    $('composeStatus').textContent = aiReady() && words.length > 1 ? 'Đang hỏi AI…' : '';
+    const r = await Sentence.compose(words, aiCfg);
+    if (run !== composeRun) return; // the sequence changed while waiting
+    $('composeStatus').textContent = '';
+    $('composeBtn').disabled = seq.length === 0;
+    $('sentenceText').textContent = r.text;
+    const pill = $('sentencePill');
+    if (r.source === 'ai') {
+      pill.textContent = 'gợi ý do AI · chưa kiểm chứng';
+      pill.className = 'pill pill-unsure';
+      $('sentenceNote').textContent = `Từ gốc: ${Sentence.rawJoin(words)}`;
+    } else {
+      pill.textContent = 'chuỗi từ gốc';
+      pill.className = 'pill pill-ok';
+      $('sentenceNote').textContent = r.reason === 'chỉ có một từ' ? '' : `Không ghép bằng AI: ${r.reason}.`;
+    }
+    $('sentenceBox').hidden = false;
+    lastSentence = { words, text: r.text, source: r.source, reason: r.reason || null };
+  }
+  let lastSentence = null;
+  $('composeBtn').addEventListener('click', composeSentence);
+  $('seqClear').addEventListener('click', () => { seq.length = 0; hideSentence(); renderSeq(); });
+
+  function renderAiCfg() {
+    $('aiEndpoint').value = aiCfg.endpoint;
+    $('aiModel').value = aiCfg.model;
+    $('aiKey').value = aiCfg.key;
+    $('aiState').textContent = aiReady()
+      ? 'Đã cấu hình: "Ghép thành câu" sẽ gửi chuỗi từ tới dịch vụ AI.'
+      : 'Chưa cấu hình: nút "Ghép thành câu" chỉ nối các từ rời.';
+  }
+  $('aiSave').addEventListener('click', () => {
+    aiCfg = { endpoint: $('aiEndpoint').value.trim(), model: $('aiModel').value.trim(), key: $('aiKey').value.trim() };
+    const saved = store.set(AI_KEY, JSON.stringify(aiCfg));
+    renderAiCfg();
+    if (!saved) $('aiState').textContent += ' (Không lưu được vào trình duyệt; chỉ dùng trong phiên này.)';
+  });
+  $('aiForget').addEventListener('click', () => {
+    aiCfg = { endpoint: '', model: '', key: '' };
+    store.del(AI_KEY);
+    renderAiCfg();
+  });
+  renderAiCfg();
+  renderSeq();
+  renderCapture();
+
   // ---------------------------------------------------------------- advanced drawer
   const fmt2 = (v) => Number(v).toFixed(2);
   function syncAdvancedFromS2T() {
@@ -461,5 +606,9 @@
     sessionUnsure: () => sessionUnsure.map((t) => ({ ...t })),
     exportText: () => exportLines().join('\r\n'),
     counter: () => ({ ok: counter.ok, unsure: counter.unsure, words: Object.fromEntries(counter.words) }),
+    sequence: () => seq.slice(),
+    capturing: () => capturing,
+    lastSentence: () => (lastSentence ? { ...lastSentence } : null),
+    aiConfigured: () => aiReady(),
   };
 })();
